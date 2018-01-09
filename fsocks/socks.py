@@ -111,23 +111,23 @@ class Message(Packet):
                     e.message)
         if atype is ATYPE.DOMAINNAME:
             alen = struct.unpack('!B', wrapper(recv_all(sock, 1)))[0]
-            address = wrapper(recv_all(sock, alen)).decode()
+            host = wrapper(recv_all(sock, alen)).decode()
         elif atype is ATYPE.IPV4:
-            address = ipaddress.IPv4Address(
+            host = ipaddress.IPv4Address(
                     wrapper(recv_all(sock, 4))).compressed
         elif atype is ATYPE.IPV6:
-            address = ipaddress.IPv6Address(
+            host = ipaddress.IPv6Address(
                     wrapper(recv_all(sock, 16))).compressed
         port = struct.unpack('!H', wrapper(recv_all(sock, 2)))[0]
-        return cls(ver, msg, atype,
-                   (address, port))
+        return cls(ver, msg, atype, (host, port))
 
     def to_bytes(self):
         data = struct.pack('!4B', self.ver.value, self.msg.value,
                            self.rsv, self.atype.value)
         if self.atype is ATYPE.DOMAINNAME:
-            addrlen = len(self.addr)
-            data += struct.pack('!B{}s', addrlen, self.addr)
+            alen = len(self.addr[0].encode())
+            data += struct.pack('!B{}s'.format(alen),
+                                alen, self.addr[0].encode())
         elif self.atype is ATYPE.IPV4:
             data += ipaddress.IPv4Address(self.addr[0]).packed
         elif self.atype is ATYPE.IPV6:

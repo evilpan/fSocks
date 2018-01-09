@@ -5,12 +5,16 @@ Yet another socks5 proxy to bypass firewall
 
 # local
 
-./fclient.py -c config.json
+```
+python3 fclient.py -c config.json
+```
 
 # beyond the wall
 
-./fserver.py -c config.json
+```
+python3 fserver.py -c config.json
+```
 
 # drafts
 
-see [drafts.md](drafts.md)
+For more infomation, please refer to [the draft](drafts.md)

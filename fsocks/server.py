@@ -3,7 +3,7 @@ import socket
 import select
 from threading import Thread
 from fsocks import logger, config
-from fsocks.net import send_all
+from fsocks.net import send_all, SocketError
 from fsocks.socks import CMD, VERSION, ATYPE, REP,\
         Message, ProxyError
 from fsocks.cipher.xor import XOR
@@ -15,8 +15,8 @@ def handle_conn(clientfd):
     decrypt = cipher.decrypt
     try:
         req = Message.from_sock(clientfd, wrapper=decrypt)
-    except ProxyError as e:
-        logger.warn(e)
+    except (ProxyError, SocketError) as e:
+        logger.warn('Invalid message: {}'.format(e))
         clientfd.close()
         return
     logger.info(req)

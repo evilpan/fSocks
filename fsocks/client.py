@@ -15,7 +15,7 @@ def handle_conn(clientfd):
     try:
         req = Message.from_sock(clientfd)
     except ProxyError as e:
-        logger.warn(e)
+        logger.warn('Invalid message: {}'.format(e))
         clientfd.close()
         return
     logger.info(req)

@@ -71,4 +71,5 @@ However, it's hackable, and you can roll your own quite easily.
 - [ ] Bazeries Cipher)
 - [ ] Digrafid Cipher
 - [ ] Beale ciphers
+
 - to be more ...
