@@ -2,8 +2,8 @@
 import socket
 import select
 from threading import Thread
-from fsocks import logger
-from fsocks.socks import Message, ClientGreeting, ServerGreeting
+from fsocks import logger, config
+from fsocks.socks import Message, ClientGreeting, ServerGreeting, ProxyError
 from fsocks.net import send_all
 from fsocks.crypto import encrypt, decrypt
 
@@ -17,7 +17,7 @@ def handle_conn(clientfd):
         return
     logger.info(req)
     remotefd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    remotefd.connect(('127.0.0.1', 1081))
+    remotefd.connect(config.server_address)
     req.to_sock(remotefd, wrapper=encrypt)
     # piping clientfd and remotefd with crypto
     rdset = [clientfd, remotefd]
@@ -42,10 +42,12 @@ def handle_conn(clientfd):
 
 
 def main():
+    config.load_args()
     serverfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    serverfd.bind(('127.0.0.1', 1080))
+    serverfd.bind(config.client_address)
     serverfd.listen(5)
-    logger.info('Server started')
+    logger.info('Local SOCKS5 server started on {}:{}'.format(
+        config.client_host, config.client_port))
     while True:
         clientfd, addr = serverfd.accept()
         client_greeting = ClientGreeting.from_sock(clientfd)

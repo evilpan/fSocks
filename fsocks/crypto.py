@@ -2,19 +2,19 @@
 
 
 def xor_codec(data, key=0x26):
-    result = b''
-    for b in data:
+    source = bytearray(data)
+    result = bytearray()
+    for b in source:
         b = b ^ key
-        result += chr(b).encode()
+        result.append(b)
+    result = bytes(result)
     assert len(data) == len(result)
     return result
 
 
 def encrypt(data):
-    #return xor_codec(data)
-    return data
+    return xor_codec(data)
 
 
 def decrypt(data):
-    #return xor_codec(data)
-    return data
+    return xor_codec(data)

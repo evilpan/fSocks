@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 import socket
 import select
 from threading import Thread
@@ -52,10 +53,20 @@ def handle_conn(clientfd):
 
 
 def main():
+    if len(sys.argv) != 2:
+        print('Usage {} [host:]port'.format(sys.argv[0]))
+        sys.exit(1)
+    hp = sys.argv[1].rsplit(':', 1)
+    if len(hp) == 2:
+        host = hp[0]
+        port = int(hp[1])
+    else:
+        host = '0.0.0.0'
+        port = int(hp[0])
     serverfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    serverfd.bind(('127.0.0.1', 1080))
+    serverfd.bind((host, port))
     serverfd.listen(5)
-    logger.info('Server started')
+    logger.info('Server started on {}:{}'.format(host, port))
     while True:
         clientfd, addr = serverfd.accept()
         client_greeting = ClientGreeting.from_sock(clientfd)

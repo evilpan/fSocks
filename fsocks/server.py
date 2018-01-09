@@ -2,7 +2,7 @@
 import socket
 import select
 from threading import Thread
-from fsocks import logger
+from fsocks import logger, config
 from fsocks.net import send_all
 from fsocks.socks import CMD, VERSION, ATYPE, REP,\
         Message, ProxyError
@@ -58,10 +58,12 @@ def handle_conn(clientfd):
 
 
 def main():
+    config.load_args()
     serverfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    serverfd.bind(('127.0.0.1', 1081))
+    serverfd.bind(config.server_address)
     serverfd.listen(5)
-    logger.info('Server started')
+    logger.info('Server started on {}:{}'.format(
+        config.server_host, config.server_port))
     while True:
         clientfd, addr = serverfd.accept()
         # no greetings, handle CONNECT command
