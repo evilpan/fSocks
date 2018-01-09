@@ -6,10 +6,13 @@ from fsocks import logger, config
 from fsocks.net import send_all
 from fsocks.socks import CMD, VERSION, ATYPE, REP,\
         Message, ProxyError
-from fsocks.crypto import encrypt, decrypt
+from fsocks.cipher.xor import XOR
 
 
 def handle_conn(clientfd):
+    cipher = XOR(0x26)
+    encrypt = cipher.encrypt
+    decrypt = cipher.decrypt
     try:
         req = Message.from_sock(clientfd, wrapper=decrypt)
     except ProxyError as e:
