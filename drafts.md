@@ -26,6 +26,49 @@ However, it's hackable, and you can roll your own quite easily.
 
 ## considerations
 
-[ ] Do we need SSL for step(1)?
-[x] Prevent idle TCP connection(using timeout)
-[x] Prevent brute force attack(blacklist ip manually/automaticly)
+- [ ] Do we need SSL for step(1)?
+- [x] Prevent idle TCP connection(using timeout)
+- [x] Prevent brute force attack(blacklist ip manually/automaticly)
+
+
+## available ciphers
+
+### codec
+
+- [x] base64/32/16/85
+- [x] XXEncode
+- [x] UUEncode
+
+### symmetric
+
+- [x] XOR
+- [ ] Rail-Fence Cipher
+- [ ] Curve Cipher
+- [ ] Columnar Transposition Cipher
+- [ ] Atbash Cipher
+- [ ] Caesar Cipher
+- [ ] Vigenère Cipher
+- [ ] Autokey Cipher
+- [ ] Beaufort Cipher
+- [ ] Running Key Cipher
+- [ ] ROT5/13/18/47
+- [ ] Simple Substitution Cipher
+- [ ] Hill Cipher
+- [ ] Pigpen Cipher
+- [ ] Polybius Square Cipher
+- [ ] ADFGX Cipher
+- [ ] Playfair Cipher
+- [ ] Porta Cipher
+- [ ] Homophonic Substitution Cipher
+- [ ] Affine Cipher
+- [ ] Baconian Cipher
+- [ ] Bifid Cipher
+- [ ] Trifid Cipher
+- [ ] Four-Square Cipher
+- [ ] Checkerboard Cipher
+- [ ] Straddle Checkerboard Cipher
+- [ ] Fractionated Morse Cipher
+- [ ] Bazeries Cipher)
+- [ ] Digrafid Cipher
+- [ ] Beale ciphers
+- to be more ...
