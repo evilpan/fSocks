@@ -1,47 +1,34 @@
 #!/usr/bin/env python3
 import socket
-import select
 from threading import Thread
 from fsocks import logger, config
 from fsocks.socks import Message, ClientGreeting, ServerGreeting, ProxyError
-from fsocks.net import send_all
-from fsocks.cipher.xor import XOR
+from fsocks.net import Stream, pipe
+from fsocks.cipher import XOR, Plain, Base64
 
 
-def handle_conn(clientfd):
-    cipher = XOR(0x26)
-    encrypt = cipher.encrypt
-    decrypt = cipher.decrypt
+def handle_conn(user):
     try:
-        req = Message.from_sock(clientfd)
+        req = Message.from_stream(user)
     except ProxyError as e:
         logger.warn('Invalid message: {}'.format(e))
-        clientfd.close()
+        user.close()
         return
     logger.info(req)
     remotefd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     remotefd.connect(config.server_address)
-    req.to_sock(remotefd, wrapper=encrypt)
-    # piping clientfd and remotefd with crypto
-    rdset = [clientfd, remotefd]
-    while True:
-        rlist, _, _ = select.select(rdset, [], [])
-        if clientfd in rlist:
-            try:
-                data = clientfd.recv(4096)
-            except ConnectionResetError as e:
-                logger.warn(str(e))
-                break
-            if len(data) == 0:
-                break
-            send_all(remotefd, encrypt(data))
-        if remotefd in rlist:
-            data = remotefd.recv(4096)
-            if len(data) == 0:
-                break
-            send_all(clientfd, decrypt(data))
-    remotefd.close()
-    clientfd.close()
+    server = Stream(remotefd)
+    req.to_stream(server)
+    response = Message.from_stream(server, request=False)
+    # forward this reply to user
+    response.to_stream(user)
+
+    # request done, piping stream data
+    # cipher = XOR(0x26)
+    cipher = Base64()
+    pipe(user, server, cipher)
+    server.close()
+    user.close()
 
 
 def main():
@@ -53,13 +40,15 @@ def main():
         config.client_host, config.client_port))
     while True:
         clientfd, addr = serverfd.accept()
-        client_greeting = ClientGreeting.from_sock(clientfd)
+        user = Stream(clientfd)
+        client_greeting = ClientGreeting.from_stream(user)
         logger.debug('C {}:{} {}'.format(
             addr[0], addr[1], client_greeting))
         server_greeting = ServerGreeting()
         logger.debug('S {}'.format(server_greeting))
-        server_greeting.to_sock(clientfd)
-        t = Thread(target=handle_conn, args=(clientfd,))
+        server_greeting.to_stream(user)
+        # greeting done, receiving CONNECT request from client
+        t = Thread(target=handle_conn, args=(user,))
         t.setDaemon(True)
         t.start()
 

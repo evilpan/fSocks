@@ -68,8 +68,8 @@ However, it's hackable, and you can roll your own quite easily.
 - [ ] Checkerboard Cipher
 - [ ] Straddle Checkerboard Cipher
 - [ ] Fractionated Morse Cipher
-- [ ] Bazeries Cipher)
+- [ ] Bazeries Cipher
 - [ ] Digrafid Cipher
-- [ ] Beale ciphers
+- [ ] Beale Cipher
 
 - to be more ...

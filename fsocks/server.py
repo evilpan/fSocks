@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 import socket
-import select
 from threading import Thread
 from fsocks import logger, config
-from fsocks.net import send_all, SocketError
+from fsocks.net import pipe, SocketError, Stream
 from fsocks.socks import CMD, VERSION, ATYPE, REP,\
         Message, ProxyError
-from fsocks.cipher.xor import XOR
+from fsocks.cipher import XOR, Plain, Base64
 
 
-def handle_conn(clientfd):
-    cipher = XOR(0x26)
-    encrypt = cipher.encrypt
-    decrypt = cipher.decrypt
+def handle_conn(client):
     try:
-        req = Message.from_sock(clientfd, wrapper=decrypt)
+        req = Message.from_stream(client)
     except (ProxyError, SocketError) as e:
         logger.warn('Invalid message: {}'.format(e))
-        clientfd.close()
+        client.close()
         return
     logger.info(req)
     if req.msg is CMD.CONNECT:
@@ -34,27 +30,15 @@ def handle_conn(clientfd):
                 msg=REP.SUCCEEDED,
                 atype=ATYPE.IPV4,
                 addr=bind_address)
-        reply.to_sock(clientfd, wrapper=encrypt)
-        # now forwarding data
-        rdset = [clientfd, remotefd]
-        while True:
-            rlist, _, _ = select.select(rdset, [], [])
-            if clientfd in rlist:
-                try:
-                    data = clientfd.recv(4096)
-                except ConnectionResetError as e:
-                    logger.warn(str(e))
-                    break
-                if len(data) == 0:
-                    break
-                send_all(remotefd, decrypt(data))
-            if remotefd in rlist:
-                data = remotefd.recv(4096)
-                if len(data) == 0:
-                    break
-                send_all(clientfd, encrypt(data))
-        remotefd.close()
-        clientfd.close()
+        remote = Stream(remotefd)
+        reply.to_stream(client)
+
+        # request done, piping stream data
+        # cipher = XOR(0x26)
+        cipher = Base64()
+        pipe(remote, client, cipher)
+        remote.close()
+        client.close()
     else:
         logger.error('not handled')
     logger.info('handle done')
@@ -70,7 +54,8 @@ def main():
     while True:
         clientfd, addr = serverfd.accept()
         # no greetings, handle CONNECT command
-        t = Thread(target=handle_conn, args=(clientfd,))
+        client = Stream(clientfd)
+        t = Thread(target=handle_conn, args=(client,))
         t.setDaemon(True)
         t.start()
 

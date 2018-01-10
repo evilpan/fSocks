@@ -2,6 +2,9 @@
 import logging
 
 
+__all__ = ['logger']
+
+
 _formater = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
 _handler = logging.StreamHandler()
 _handler.setFormatter(_formater)

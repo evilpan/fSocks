@@ -17,8 +17,8 @@ class XOR(BaseCipher):
         assert len(data) == len(result)
         return result
 
-    def encrypt(self, data, **kwargs):
+    def do_encrypt(self, data):
         return self.xor_codec(data)
 
-    def decrypt(self, data, **kwargs):
+    def do_decrypt(self, data):
         return self.xor_codec(data)

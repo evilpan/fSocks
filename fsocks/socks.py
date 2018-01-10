@@ -2,7 +2,6 @@
 import struct
 import ipaddress
 from enum import Enum, unique
-from fsocks.net import recv_all, send_all
 
 
 class ProxyError(Exception):
@@ -56,14 +55,14 @@ class Packet:
     """ Interface """
 
     @classmethod
-    def from_sock(cls, sock, wrapper=lambda x: x, **kwargs):
+    def from_stream(cls, stream, **kwargs):
         pass
 
     def to_bytes(self):
         pass
 
-    def to_sock(self, sock, wrapper=lambda x: x):
-        return send_all(sock, wrapper(self.to_bytes()))
+    def to_stream(self, stream):
+        return stream.write(self.to_bytes())
 
 
 class Message(Packet):
@@ -94,9 +93,8 @@ class Message(Packet):
         return self.msg in CMD
 
     @classmethod
-    def from_sock(cls, sock, wrapper=lambda x: x, request=True):
-        data = wrapper(recv_all(sock, 4))
-        ver, msg, rsv, atype = struct.unpack('!4B', data)
+    def from_stream(cls, stream, request=True):
+        ver, msg, rsv, atype = struct.unpack('!4B', stream.read(4))
         if rsv != cls.rsv:
             raise ProxyError(
                     REP.GENERAL_SOCKS_SERVER_FAILURE,
@@ -110,15 +108,13 @@ class Message(Packet):
                     REP.GENERAL_SOCKS_SERVER_FAILURE,
                     e.message)
         if atype is ATYPE.DOMAINNAME:
-            alen = struct.unpack('!B', wrapper(recv_all(sock, 1)))[0]
-            host = wrapper(recv_all(sock, alen)).decode()
+            alen = struct.unpack('!B', stream.read(1))[0]
+            host = stream.read(alen).decode()
         elif atype is ATYPE.IPV4:
-            host = ipaddress.IPv4Address(
-                    wrapper(recv_all(sock, 4))).compressed
+            host = ipaddress.IPv4Address(stream.read(4)).compressed
         elif atype is ATYPE.IPV6:
-            host = ipaddress.IPv6Address(
-                    wrapper(recv_all(sock, 16))).compressed
-        port = struct.unpack('!H', wrapper(recv_all(sock, 2)))[0]
+            host = ipaddress.IPv6Address(stream.read(16)).compressed
+        port = struct.unpack('!H', stream.read(2))[0]
         return cls(ver, msg, atype, (host, port))
 
     def to_bytes(self):
@@ -150,10 +146,9 @@ class ClientGreeting(Packet):
         self.methods = methods
 
     @classmethod
-    def from_sock(cls, sock, wrapper=lambda x: x):
-        ver, nmethods = struct.unpack('!BB', wrapper(recv_all(sock, 2)))
-        methods = struct.unpack('!{}B'.format(nmethods),
-                                wrapper(recv_all(sock, nmethods)))
+    def from_stream(cls, stream):
+        ver, nmethods = struct.unpack('!BB', stream.read(2))
+        methods = struct.unpack('!{}B'.format(nmethods), stream.read(nmethods))
         ver = VERSION(ver)
         methods = list(map(METHOD, methods))
         return cls(ver, nmethods, methods)
@@ -178,8 +173,8 @@ class ServerGreeting(Packet):
         self.method = method
 
     @classmethod
-    def from_sock(cls, sock, wrapper=lambda x: x):
-        ver, method = struct.unpack('!BB', wrapper(recv_all(sock, 2)))
+    def from_stream(cls, stream):
+        ver, method = struct.unpack('!BB', stream.read(2))
         ver = VERSION(ver)
         method = METHOD(method)
         return cls(ver, method)

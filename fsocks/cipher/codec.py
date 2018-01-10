@@ -1,14 +1,20 @@
-#!/usr/bin/env python3
 import base64
 from .base import CodecCipher
 
 
-__all__ = ['Base64', 'Base32', 'Base16', 'Base85',
-           'XXencode', 'UUencode']
+__all__ = ['Plain', 'Base64', 'Base32', 'Base16',
+           'Base85', 'XXencode', 'UUencode']
+
+
+class Plain(CodecCipher):
+    def encode(self, data):
+        return data
+
+    def decode(self, data):
+        return data
 
 
 class Base64(CodecCipher):
-
     def encode(self, data):
         return base64.encodebytes(data)
 
@@ -17,7 +23,6 @@ class Base64(CodecCipher):
 
 
 class Base32(CodecCipher):
-
     def encode(self, data):
         return base64.b32encode(data)
 
@@ -26,7 +31,6 @@ class Base32(CodecCipher):
 
 
 class Base16(CodecCipher):
-
     def encode(self, data):
         return base64.b16encode(data)
 
@@ -35,7 +39,6 @@ class Base16(CodecCipher):
 
 
 class Base85(CodecCipher):
-
     def encode(self, data):
         return base64.b85encode(data)
 

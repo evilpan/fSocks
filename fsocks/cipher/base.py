@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 
 class CipherError(Exception):
@@ -7,30 +6,30 @@ class CipherError(Exception):
 
 class BaseCipher:
 
-    def encrypt(self, data: bytes, **kwargs):
+    def encrypt(self, data: bytes):
         """
         :param data: input plain data
         :rtype: bytes
         """
         try:
-            return self._do_encrypt(self, data, **kwargs)
+            return self.do_encrypt(data)
         except (IndexError, ValueError) as e:
             raise CipherError(e.message)
 
-    def decrypt(self, data: bytes, **kwargs):
+    def decrypt(self, data: bytes):
         """
         :param data: input encrypted data
         :rtype: bytes
         """
         try:
-            return self._do_decrypt(self, data, **kwargs)
+            return self.do_decrypt(data)
         except (IndexError, ValueError) as e:
             raise CipherError(e.message)
 
-    def _do_encrypt(self, data, **kwargs):
+    def do_encrypt(self, data):
         pass
 
-    def _do_decrypt(self, data, **kwargs):
+    def do_decrypt(self, data):
         pass
 
 
@@ -46,8 +45,8 @@ class CodecCipher(BaseCipher):
     def decode(self, data):
         pass
 
-    def _do_encrypt(self, data, **kwargs):
+    def do_encrypt(self, data):
         return self.encode(data)
 
-    def _do_decrypt(self, data, **kwargs):
+    def do_decrypt(self, data):
         return self.decode(data)
