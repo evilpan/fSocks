@@ -16,10 +16,10 @@ class Plain(CodecCipher):
 
 class Base64(CodecCipher):
     def encode(self, data):
-        return base64.encodebytes(data)
+        return base64.b64encode(data)
 
     def decode(self, data):
-        return base64.decodebytes(data)
+        return base64.b64decode(data)
 
 
 class Base32(CodecCipher):

@@ -1,6 +1,6 @@
 
 
-class CipherError(Exception):
+class CipherError(ValueError):
     pass
 
 
@@ -14,7 +14,7 @@ class BaseCipher:
         try:
             return self.do_encrypt(data)
         except (IndexError, ValueError) as e:
-            raise CipherError(e.message)
+            raise CipherError('{}: {}'.format(data, e))
 
     def decrypt(self, data: bytes):
         """
@@ -24,7 +24,7 @@ class BaseCipher:
         try:
             return self.do_decrypt(data)
         except (IndexError, ValueError) as e:
-            raise CipherError(e.message)
+            raise CipherError('{}: {}'.format(data, e))
 
     def do_encrypt(self, data):
         pass

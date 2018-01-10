@@ -39,6 +39,8 @@ However, it's hackable, and you can roll your own quite easily.
 - [x] XXEncode
 - [x] UUEncode
 
+> WARN: codec is slow and inefficient
+
 ### symmetric
 
 - [x] XOR

@@ -20,6 +20,13 @@ python3 fclient.py -c config.json
 python3 fserver.py -c config.json
 ```
 
+# TODO
+
+- [ ] Handshake for the first CONNECT request
+- [ ] Using event loop instead of one connection per thread
+- [ ] Complete unit tests with coverage
+
 # drafts
 
 For more infomation, please refer to [the drafts](drafts)
+

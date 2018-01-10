@@ -5,7 +5,7 @@ from fsocks import logger, config
 from fsocks.net import pipe, SocketError, Stream
 from fsocks.socks import CMD, VERSION, ATYPE, REP,\
         Message, ProxyError
-from fsocks.cipher import XOR, Plain, Base64
+from fsocks.cipher import XOR, Plain
 
 
 def handle_conn(client):
@@ -34,8 +34,7 @@ def handle_conn(client):
         reply.to_stream(client)
 
         # request done, piping stream data
-        # cipher = XOR(0x26)
-        cipher = Base64()
+        cipher = XOR(0x26)
         pipe(remote, client, cipher)
         remote.close()
         client.close()
