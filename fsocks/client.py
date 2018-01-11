@@ -16,16 +16,19 @@ def handle_conn(user):
         return
     logger.info(req)
     remotefd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    remotefd.connect(config.server_address)
     server = Stream(remotefd)
-    req.to_stream(server)
-    response = Message.from_stream(server, request=False)
-    # forward this reply to user
-    response.to_stream(user)
+    try:
+        server.connect(config.server_address)
+        req.to_stream(server)
+        response = Message.from_stream(server, request=False)
+        # forward this reply to user
+        response.to_stream(user)
 
-    # request done, piping stream data
-    cipher = ALL_CIPHERS[0x01]()
-    pipe(user, server, cipher)
+        # request done, piping stream data
+        cipher = ALL_CIPHERS[0x01]()
+        pipe(user, server, cipher)
+    except SocketError as e:
+        logger.warn(e)
     server.close()
     user.close()
 

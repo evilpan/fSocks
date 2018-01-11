@@ -14,8 +14,19 @@ class Stream:
     def __init__(self, sock):
         self.sock = sock
 
+    def connect(self, addr):
+        try:
+            return self.sock.connect(addr)
+        except (ConnectionRefusedError,
+                TimeoutError,
+                OSError) as e:
+            raise SocketError(str(e))
+
     def read(self, nbytes):
-        return self.sock.recv(nbytes)
+        try:
+            return self.sock.recv(nbytes)
+        except (OSError, TimeoutError) as e:
+            raise SocketError(str(e))
 
     def read_all(self, nbytes):
         read = b''
@@ -25,22 +36,22 @@ class Stream:
             n = len(data)
             if n == 0:
                 raise SocketError('connection closed')
-            elif n < 0:
-                raise SocketError('interal error')
             read += data
             left -= n
         return read
 
     def write(self, data):
-        return self.sock.send(data)
+        try:
+            return self.sock.send(data)
+        except (OSError, TimeoutError) as e:
+            raise SocketError(str(e))
 
     def write_all(self, data):
         sent = 0
         while sent < len(data):
             n = self.write(data[sent:])
             if n == 0:
-                print('sup?')
-                continue
+                raise SocketError('The buffer is full')
             if n < 0:
                 raise SocketError('internal error')
             sent += n
