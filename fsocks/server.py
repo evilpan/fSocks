@@ -4,8 +4,8 @@ from threading import Thread
 from fsocks import logger, config
 from fsocks.net import pipe, SocketError, Stream
 from fsocks.socks import CMD, VERSION, ATYPE, REP,\
-        Message, ProxyError
-from fsocks.cipher import XOR, Plain
+    Message, ProxyError
+from fsocks.cipher import ALL_CIPHERS
 
 
 def handle_conn(client):
@@ -26,15 +26,15 @@ def handle_conn(client):
             return
         bind_address = remotefd.getsockname()
         reply = Message(
-                ver=VERSION.SOCKS5,
-                msg=REP.SUCCEEDED,
-                atype=ATYPE.IPV4,
-                addr=bind_address)
+            ver=VERSION.SOCKS5,
+            msg=REP.SUCCEEDED,
+            atype=ATYPE.IPV4,
+            addr=bind_address)
         remote = Stream(remotefd)
         reply.to_stream(client)
 
         # request done, piping stream data
-        cipher = XOR(0x26)
+        cipher = ALL_CIPHERS[0x01]()
         pipe(remote, client, cipher)
         remote.close()
         client.close()

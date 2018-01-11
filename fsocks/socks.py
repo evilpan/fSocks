@@ -62,7 +62,7 @@ class Packet:
         pass
 
     def to_stream(self, stream):
-        return stream.write(self.to_bytes())
+        return stream.write_all(self.to_bytes())
 
 
 class Message(Packet):
@@ -94,27 +94,28 @@ class Message(Packet):
 
     @classmethod
     def from_stream(cls, stream, request=True):
-        ver, msg, rsv, atype = struct.unpack('!4B', stream.read(4))
+        """ Throw SocketError """
+        ver, msg, rsv, atype = struct.unpack('!4B', stream.read_all(4))
         if rsv != cls.rsv:
             raise ProxyError(
-                    REP.GENERAL_SOCKS_SERVER_FAILURE,
-                    'invalid RSV {}'.format(rsv))
+                REP.GENERAL_SOCKS_SERVER_FAILURE,
+                'invalid RSV {}'.format(rsv))
         try:
             ver = VERSION(ver)
             msg = CMD(msg) if request else REP(msg)
             atype = ATYPE(atype)
         except ValueError as e:
             raise ProxyError(
-                    REP.GENERAL_SOCKS_SERVER_FAILURE,
-                    e.message)
+                REP.GENERAL_SOCKS_SERVER_FAILURE,
+                e.message)
         if atype is ATYPE.DOMAINNAME:
-            alen = struct.unpack('!B', stream.read(1))[0]
-            host = stream.read(alen).decode()
+            alen = struct.unpack('!B', stream.read_all(1))[0]
+            host = stream.read_all(alen).decode()
         elif atype is ATYPE.IPV4:
-            host = ipaddress.IPv4Address(stream.read(4)).compressed
+            host = ipaddress.IPv4Address(stream.read_all(4)).compressed
         elif atype is ATYPE.IPV6:
-            host = ipaddress.IPv6Address(stream.read(16)).compressed
-        port = struct.unpack('!H', stream.read(2))[0]
+            host = ipaddress.IPv6Address(stream.read_all(16)).compressed
+        port = struct.unpack('!H', stream.read_all(2))[0]
         return cls(ver, msg, atype, (host, port))
 
     def to_bytes(self):
@@ -133,9 +134,9 @@ class Message(Packet):
 
     def __str__(self):
         return '<{} {} {} {}:{}>'.format(
-                self.ver.name, self.msg.name,
-                self.atype.name,
-                self.addr[0], self.addr[1])
+            self.ver.name, self.msg.name,
+            self.atype.name,
+            self.addr[0], self.addr[1])
 
 
 class ClientGreeting(Packet):
@@ -147,8 +148,9 @@ class ClientGreeting(Packet):
 
     @classmethod
     def from_stream(cls, stream):
-        ver, nmethods = struct.unpack('!BB', stream.read(2))
-        methods = struct.unpack('!{}B'.format(nmethods), stream.read(nmethods))
+        ver, nmethods = struct.unpack('!BB', stream.read_all(2))
+        methods = struct.unpack('!{}B'.format(nmethods),
+                                stream.read_all(nmethods))
         ver = VERSION(ver)
         methods = list(map(METHOD, methods))
         return cls(ver, nmethods, methods)
@@ -174,7 +176,7 @@ class ServerGreeting(Packet):
 
     @classmethod
     def from_stream(cls, stream):
-        ver, method = struct.unpack('!BB', stream.read(2))
+        ver, method = struct.unpack('!BB', stream.read_all(2))
         ver = VERSION(ver)
         method = METHOD(method)
         return cls(ver, method)

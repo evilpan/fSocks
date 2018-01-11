@@ -35,11 +35,11 @@ However, it's hackable, and you can roll your own quite easily.
 
 ### codec
 
-- [x] base64/32/16/85
+- [x] Base16/32/64/85
 - [x] XXEncode
 - [x] UUEncode
 
-> WARN: codec is slow and inefficient
+> WARN: codec is not really a cipher and is easy to decode
 
 ### symmetric
 

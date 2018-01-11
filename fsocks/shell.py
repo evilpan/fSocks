@@ -14,13 +14,13 @@ class Config:
 
     def __init__(self):
         self.raw = {
-                "client_host": "127.0.0.1",
-                "client_port": 1080,
-                "server_host": "127.0.0.1",
-                "server_port": 1081,
-                "cipher": "xor",
-                "password": 123456,
-                }
+            "client_host": "127.0.0.1",
+            "client_port": 1080,
+            "server_host": "127.0.0.1",
+            "server_port": 1081,
+            "method": "sha256",
+            "password": "my_password",
+        }
 
     @property
     def client_address(self):
@@ -34,7 +34,7 @@ class Config:
         import json
         import argparse
         parser = argparse.ArgumentParser(
-                description='Yet another tunnel proxy')
+            description='Yet another tunnel proxy')
         parser.add_argument('-c', '--config', required=True,
                             help='path to config file')
         check_python()

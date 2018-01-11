@@ -3,15 +3,15 @@ import socket
 from threading import Thread
 from fsocks import logger, config
 from fsocks.socks import Message, ClientGreeting, ServerGreeting, ProxyError
-from fsocks.net import Stream, pipe
-from fsocks.cipher import XOR, Plain
+from fsocks.net import Stream, pipe, SocketError
+from fsocks.cipher import ALL_CIPHERS
 
 
 def handle_conn(user):
     try:
         req = Message.from_stream(user)
-    except ProxyError as e:
-        logger.warn('Invalid message: {}'.format(e))
+    except (ProxyError, SocketError) as e:
+        logger.warn('UA: {}'.format(e))
         user.close()
         return
     logger.info(req)
@@ -24,7 +24,7 @@ def handle_conn(user):
     response.to_stream(user)
 
     # request done, piping stream data
-    cipher = XOR(0x26)
+    cipher = ALL_CIPHERS[0x01]()
     pipe(user, server, cipher)
     server.close()
     user.close()

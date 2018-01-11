@@ -70,10 +70,10 @@ class XXencode(CodecCipher):
         for i in range(0, len(data), 3):
             bits = ''
             for j in range(3):
-                bits += byte2bit(data[i+j])
+                bits += byte2bit(data[i + j])
             assert len(bits) == 24
             for k in range(0, 24, 6):
-                nb = bit2byte(bits[k:k+6])
+                nb = bit2byte(bits[k: k + 6])
                 result.append(self.table[nb])
         return bytes(result)
 
@@ -86,7 +86,7 @@ class XXencode(CodecCipher):
             bits += byte2bit(nb)[2:]
         assert len(bits) % 8 == 0
         for i in range(0, len(bits), 8):
-            result.append(bit2byte(bits[i:i+8]))
+            result.append(bit2byte(bits[i: i + 8]))
         # how to correctly strip the padded zeros?
         return bytes(result)
 
