@@ -1,3 +1,6 @@
+import traceback
+import logging
+from fsocks.log import logger
 
 
 class CipherError(ValueError):
@@ -14,7 +17,10 @@ class BaseCipher:
         try:
             return self.do_encrypt(data)
         except (IndexError, ValueError) as e:
-            raise CipherError('{}: {}'.format(data, e))
+            if logger.level == logging.DEBUG:
+                traceback.print_exc()
+            else:
+                raise CipherError('{}: {}'.format(data, e))
 
     def decrypt(self, data: bytes):
         """
@@ -24,7 +30,10 @@ class BaseCipher:
         try:
             return self.do_decrypt(data)
         except (IndexError, ValueError) as e:
-            raise CipherError('{}: {}'.format(data, e))
+            if logger.level == logging.DEBUG:
+                traceback.print_exc()
+            else:
+                raise CipherError('{}: {}'.format(data, e))
 
     def do_encrypt(self, data):
         pass

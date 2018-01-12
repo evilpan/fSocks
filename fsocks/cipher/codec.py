@@ -3,7 +3,7 @@ from .base import CodecCipher
 
 
 __all__ = ['Plain', 'Base64', 'Base32', 'Base16',
-           'Base85', 'XXencode', 'UUencode']
+           'Base85', 'XXencode', 'UUencode', 'AtBash']
 
 
 class Plain(CodecCipher):
@@ -93,3 +93,15 @@ class XXencode(CodecCipher):
 
 class UUencode(XXencode):
     table = bytearray(range(32, 96))
+
+
+class AtBash(CodecCipher):
+
+    def encode(self, data):
+        result = bytearray()
+        for b in data:
+            result.append(abs(0xFF - b))
+        return bytes(result)
+
+    def decode(self, data):
+        return self.do_encrypt(data)
