@@ -1,3 +1,5 @@
+import time
+import struct
 from enum import Enum, unique
 from .cipher import ALL_CIPHERS
 
@@ -10,10 +12,12 @@ class MTYPE(Enum):
 
 class Greeting:
 
-    def __init__(self, mtype, transaction, timestamp):
-        self.mtype = mtype
-        self.transaction = transaction
-        self.timestamp = timestamp
+    def __init__(self):
+        self.mtype = MTYPE.HELLO
+        self.timestamp = int(time.time)
+
+    def to_bytes(self):
+        pass
 
 
 class Handshake:

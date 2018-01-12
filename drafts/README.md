@@ -4,14 +4,16 @@
 
 For every CONNECT request from SOCKS, we do:
 
-1) negotiate with server using username/password
+1) negotiate with server using password
 2) when succeeded, get a random cipher from server
 3) use this cipher to fuzzy the following TCP streams
 
+for detail protocol infomation, see [protocol.md](protocol.md).
+
 ## encryption
 
-In step(1), we MUST encrypt the username/password, in a way that
-even some evil man in the middle capture the packet, they **CAN NOT**:
+In step(1), we MUST encrypt the password, in a way that even some
+evil man in the middle capture the packet, they **CAN NOT**:
 
 - restore the plain text infomation from the packet
 - replay the negotiation using the packet
@@ -26,29 +28,31 @@ However, it's hackable, and you can roll your own quite easily.
 
 ## considerations
 
-- [ ] Do we need SSL for step(1)?
 - [x] Prevent idle TCP connection(using timeout)
 - [x] Prevent brute force attack(blacklist ip manually/automaticly)
 
 
-## available ciphers
+## available ciphers(for fuzzing)
+It's just for fuzzing, doesn't matter if it's CRACKED if our payload
+is encrypted by upper layer(such as HTTPS).
 
 ### codec
 
-- [x] Base16/32/64/85
+- [x] Base16
+- [x] Base32
+- [x] Base64
+- [x] Base85
 - [x] XXEncode
 - [x] UUEncode
-
-> WARN: codec is not really a cipher and is easy to decode
+- [x] Atbash Cipher
 
 ### symmetric
 
 - [x] XOR
-- [ ] Rail-Fence Cipher
+- [x] Rail-Fence Cipher
+- [ ] Caesar Cipher
 - [ ] Curve Cipher
 - [ ] Columnar Transposition Cipher
-- [ ] Atbash Cipher
-- [ ] Caesar Cipher
 - [ ] Vigenère Cipher
 - [ ] Autokey Cipher
 - [ ] Beaufort Cipher

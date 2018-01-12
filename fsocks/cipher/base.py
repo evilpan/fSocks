@@ -1,5 +1,6 @@
 import traceback
 import logging
+from functools import reduce
 from fsocks.log import logger
 
 
@@ -59,3 +60,21 @@ class CodecCipher(BaseCipher):
 
     def do_decrypt(self, data):
         return self.decode(data)
+
+
+class CipherChain(BaseCipher):
+
+    def __init__(self, ciphers):
+        self.ciphers = ciphers
+
+    def do_encrypt(self, data):
+        result = data
+        for cipher in self.ciphers:
+            result = cipher.encrypt(result)
+        return result
+
+    def do_decrypt(self, data):
+        result = data
+        for cipher in self.ciphers:
+            result = cipher.decrypt(result)
+        return result
