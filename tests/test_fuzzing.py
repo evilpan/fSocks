@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import time
+import struct
 from unittest import TestCase
-from fsocks.cipher.integer_key import XOR, RailFence
+from fsocks.fuzzing.integer_key import XOR, RailFence
+from fsocks.fuzzing.codec import Base16, Base32, Base64, Base85,\
+    AtBash
 
 
 class TestCipher(TestCase):
@@ -38,9 +41,9 @@ class TestCipher(TestCase):
 
 class TestXOR(TestCipher):
     def test_basic(self):
-        ciphers = XOR(0x26), XOR(0x7f), XOR(0x00), XOR(-1), XOR(0x777)
-        for c in ciphers:
-            self._do_test_cipher(c)
+        for i in 0x26, 0x7f, 0x00, -1, 777:
+            cipher = XOR(i)
+            self._do_test_cipher(cipher)
 
     def test_corner(self):
         e1, e2 = XOR(-1), XOR(999)
@@ -72,3 +75,23 @@ class TestRailFence(TestCipher):
     def test_bench(self):
         cipher = RailFence(2)
         self._do_test_bench(cipher)
+
+
+class TestBaseXX(TestCipher):
+    def test_basic(self):
+        ciphers = Base16(), Base32(), Base64(), Base85()
+        for c in ciphers:
+            self._do_test_cipher(c)
+
+    def test_bench(self):
+        ciphers = Base16(), Base32(), Base64(), Base85()
+        for c in ciphers:
+            self._do_test_bench(c)
+
+
+class TestAtBash(TestCipher):
+    def test_basic(self):
+        self._do_test_cipher(AtBash())
+
+    def test_bench(self):
+        self._do_test_bench(AtBash())

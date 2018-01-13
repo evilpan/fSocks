@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
 import math
+import struct
 from .base import BaseCipher
 
+__all__ = ['XOR', 'RailFence']
 
-class XOR(BaseCipher):
 
-    def __init__(self, key: int):
-        self.key = key
+class IntKeyCipher(BaseCipher):
+    """ class that accepts one int value as initial key """
+    def __init__(self, key):
+        if isinstance(key, int):
+            self.ikey = key
+            self.key = struct.pack('!I', abs(key))
+        elif isinstance(key, bytes):
+            self.key = key
+            self.ikey, = struct.unpack('!I', key + b'\x00' * 4)
+        else:
+            raise ValueError('error type {} to initialize cipher'.format(
+                self.__class__))
+
+
+class XOR(IntKeyCipher):
 
     def do_encrypt(self, data):
         return self.xor_codec(data)
@@ -16,21 +30,18 @@ class XOR(BaseCipher):
 
     def xor_codec(self, data):
         result = bytearray()
-        key = self.key if 0 <= self.key <= 0xFF else 0x26
+        k = self.ikey if 0 <= self.ikey <= 0xFF else 0x26
         for b in data:
-            result.append(b ^ key)
+            result.append(b ^ k)
         result = bytes(result)
         assert len(data) == len(result)
         return result
 
 
-class RailFence(BaseCipher):
+class RailFence(IntKeyCipher):
     """ https://en.wikipedia.org/wiki/Rail_fence_cipher
     We don't strip the non-ASCII here
     """
-
-    def __init__(self, key: int):
-        self.numrails = key
 
     def do_encrypt(self, data):
         if not self.reasonable(data):
@@ -45,12 +56,12 @@ class RailFence(BaseCipher):
         return bytes((data[pos[n]] for n in lst))
 
     def reasonable(self, data):
-        return 1 < self.numrails < len(data)
+        return 1 < self.ikey < len(data)
 
     def fence(self, lst):
-        fence = [[None for _ in range(len(lst))] for _ in range(self.numrails)]
-        rails = list(range(self.numrails - 1)) \
-            + list(range(self.numrails - 1, 0, -1))
+        fence = [[None for _ in range(len(lst))] for _ in range(self.ikey)]
+        rails = list(range(self.ikey - 1)) \
+            + list(range(self.ikey - 1, 0, -1))
         for n, x in enumerate(lst):
             fence[rails[n % len(rails)]][n] = x
         return (c for rail in fence for c in rail if c is not None)

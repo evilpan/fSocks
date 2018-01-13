@@ -1,9 +1,31 @@
 import base64
-from .base import CodecCipher
+from .base import BaseCipher
 
 
 __all__ = ['Plain', 'Base64', 'Base32', 'Base16',
            'Base85', 'XXencode', 'UUencode', 'AtBash']
+
+
+class CodecCipher(BaseCipher):
+    """
+    CodecCipher is not really a cipher
+    It just do some fuzzing
+    """
+
+    def __init__(self):
+        self.key = b''
+
+    def encode(self, data):
+        pass
+
+    def decode(self, data):
+        pass
+
+    def do_encrypt(self, data):
+        return self.encode(data)
+
+    def do_decrypt(self, data):
+        return self.decode(data)
 
 
 class Plain(CodecCipher):

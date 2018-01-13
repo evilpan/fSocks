@@ -1,5 +1,6 @@
 import traceback
 import logging
+import struct
 from functools import reduce
 from fsocks.log import logger
 
@@ -10,6 +11,10 @@ class CipherError(ValueError):
 
 class BaseCipher:
 
+
+    def __init__(self, key: bytes):
+        self.key = key
+
     def encrypt(self, data: bytes):
         """
         :param data: input plain data
@@ -18,10 +23,9 @@ class BaseCipher:
         try:
             return self.do_encrypt(data)
         except (IndexError, ValueError) as e:
+            raise CipherError('{}: {}'.format(data, e))
             if logger.level == logging.DEBUG:
                 traceback.print_exc()
-            else:
-                raise CipherError('{}: {}'.format(data, e))
 
     def decrypt(self, data: bytes):
         """
@@ -42,24 +46,11 @@ class BaseCipher:
     def do_decrypt(self, data):
         pass
 
+    def name(self):
+        return self.__class__.__name__
 
-class CodecCipher(BaseCipher):
-    """
-    CodecCipher is not really a cipher
-    It just do some fuzzing
-    """
-
-    def encode(self, data):
-        pass
-
-    def decode(self, data):
-        pass
-
-    def do_encrypt(self, data):
-        return self.encode(data)
-
-    def do_decrypt(self, data):
-        return self.decode(data)
+    def key(self):
+        return getattr(self, 'key', b'')
 
 
 class CipherChain(BaseCipher):
