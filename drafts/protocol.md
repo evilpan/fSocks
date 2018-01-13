@@ -25,12 +25,13 @@ here is the dataflow:
 4. client send encrypt(nonce|ciphers) to server (HANDSHAKE).
 5. server respond with encrypt(nonce|cipher), (HANDSHAKE).
 
-> step 4/5 may happen in variable interval.
+> step 2/3 only happen once at connection setup.
+> step 4/5 may happen from time to time in one tunnel connection.
 
 ## user connection
 0. user greeting with client.
-1. user send SOCKS5-CONNECT reuqest to client.
-2. client send CONNECT to server
+1. user send SOCKS5 reuqest to client.
+2. client send REQUEST to server
 3. server connect to remote.
 4. server response to client.
 5. client begin forward data between user and server using. (RELAYING)
@@ -41,58 +42,56 @@ here is the dataflow:
 
 Basicly, all messages format are as follow:
 ```
-+-----+-------+---------+-----------+
-|MTYPE|  RSV  | ENC.LEN | ENC.DATA  |
-+-----+-------+---------+-----------+
-|  1  | X'00' |    4    | Variable  |
-+-----+-------+---------+-----------+
++----------+---------+----------+
+| ENC.TYPE | ENC.LEN | ENC.DATA |
++----------+---------+----------+
+|    2     |    4    | variable |
++----------+---------+----------+
 ```
 
-- MTYPE: message type
-- RSV: reserved
+- ENC.TYPE: encrypt type can be encrypt or fuzzing, see below
 - ENC.LEN: encrypted/encoded data length
 - ENC.DATA: encrypted/encoded data content, vary from MTYPE
-
-choices of MTYPE:
-
-- 0x00 HELLO: validating
-- 0x01 HANDSHAKE: negociate for ciphers
-- 0x02 CONNECT: new connection from user to remote
-- 0x03 RELAYING: relaying data between user and remote
-
 
 before connection is established, `ENC.DATA` is encrypted
 using pre shared password and method, such as HELLO, HANDSHAKE.
 after connection is established, `ENC.DATA` is encoded
-using negotiated cipher(s), such as CONNECT, RELAYING.
+using negotiated cipher(s), such as REQUEST, REPLY and RELAYING.
+
+choices of MTYPE:
+
+- 0x01 HELLO: validating
+- 0x02 HANDSHAKE: negociate for ciphers
+- 0x03 REQUEST: new SOCKS5 request from client
+- 0x04 REPLY: reply from server
+- 0x05 RELAYING: relaying data between user and remote
+- 0x06 CLOSE: connection closed by peer
 
 
 ## HELLO
 
 the `ENC.DATA` part of HELLO message is as follow:
 ```
-+-------+-------+-----------+
-| MAGIC | NONCE | TIMESTAMP |
-+-------+-------+-----------+
-|   4   |   4   |     8     |
-+-------+-------+-----------+
++---------+-------+-------+-----------+
+|  MAGIC  | MTYPE | NONCE | TIMESTAMP |
++---------+-------+-------+-----------+
+| X'1986' | X'01' |   4   |     8     |
++---------+-------+-------+-----------+
 ```
-
-- MAGIC: const value: 0x2110242
-- NONCE: random number
-- TIMESTAMP: client/server timestamp in seconds
+Request and response share the same format.
 
 ## HANDSHAKE
 
 The HANDSHAKE message is responsible for negotiating cipher.
 The `ENC.DATA` part of HANDSHAKE message is as follow:
 ```
-+-------+-------+-----------+----------+
-| MAGIC | NONCE | TIMESTAMP | CIPHERS  |
-+-------+-------+-----------+----------+
-|   4   |   4   |     8     | variable |
-+-------+-------+-----------+----------+
++---------+-------+-------+-----------+----------+
+|  MAGIC  | MTYPE | NONCE | TIMESTAMP | CIPHERS  |
++---------+-------+-------+-----------+----------+
+| X'1986' | X'02' |   4   |     8     | variable |
++---------+-------+-------+-----------+----------+
 ```
+Request and response share the same format.
 
 CIPHER can be chained to perform diverse fuzzing,
 format of each CIPHER:
@@ -109,27 +108,52 @@ format of each CIPHER:
 
 All ciphers are designed to accept a 4-byte integer as initial key.
 
-## CONNECT
-The `ENC.DATA` part of CONNECT message is as follow:
+## REQUEST
+The `ENC.DATA` part of REQUEST message is as follow:
 ```
-+-------+-------+-------+------+----------+----------+
-| MAGIC | NONCE | FROM  | ATYP | DST.ADDR | DST.PORT |
-+-------+-------+-------+------+----------+----------+
-|   4   |   4   |   4   | 1    | Variable |    2     |
-+-------+-------+-------+------+----------+----------+
++---------+-------+-------+-------+---------------+
+|  MAGIC  | MTYPE | NONCE | FROM  | SOCKS REQUEST |
++---------+-------+-------+-------+---------------+
+| X'1986' | X'03' |   4   |   4   |    Variable   |
++---------+-------+-------+-------+---------------+
 ```
 
 FROM is user identifier, such as socket.fileno.
-The ATYPE, DST.ADDR and DST.PORT the same as SOCKS5 CONNECT message.
+SOCKS REQUEST is the same as RFC1928
+
+## REPLY
+The `ENC.DATA` part of REPLY message is as follow:
+```
++---------+-------+-------+-------+--------------+
+|  MAGIC  | MTYPE | NONCE | FROM  | SOCKS REPLY  |
++---------+-------+-------+-------+--------------+
+| X'1986' | X'04' |   4   |   4   |   Variable   |
++---------+-------+-------+-------+--------------+
+```
+
+FROM is remote identifier, such as socket.fileno.
+SOCKS REQUEST is the same as RFC1928
 
 ## RELAYING
 The `ENC.DATA` part of RELAYING message is as follow:
 ```
-+-------+-------+------+-----+---------------+
-| MAGIC | NONCE | FROM | TO  |     DATA      |
-+-------+-------+------+-----+---------------+
-|   4   |   4   |  4   |  4  |  varialble    |
-+-------+-------+------+-----+---------------+
++---------+-------+-------+------+-----+---------------+
+|  MAGIC  | MTYPE | NONCE | FROM | TO  |     DATA      |
++---------+-------+-------+------+-----+---------------+
+| X'1986' | X'05' |   4   |  4   |  4  |  varialble    |
++---------+-------+-------+------+-----+---------------+
 ```
-
 FROM and TO are remote or user identifier respectively.
+
+## CLOSE
+The `ENC.DATA` part of CLOSE message is as follow:
+```
++---------+-------+-------+-------+
+|  MAGIC  | MTYPE | NONCE | FROM  |
++---------+-------+-------+-------+
+| X'1986' | X'06' |   4   |   4   |
++---------+-------+-------+-------+
+```
+When client/server receive CLOSE message, he should known the associated peer
+and inform it.
+

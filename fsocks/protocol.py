@@ -8,21 +8,7 @@ from .cipher import ALL_CIPHERS
 class MTYPE(Enum):
     HELLO = 0x01
     HANDSHAKE = 0x02
-
-
-class Greeting:
-
-    def __init__(self):
-        self.mtype = MTYPE.HELLO
-        self.timestamp = int(time.time)
-
-    def to_bytes(self):
-        pass
-
-
-class Handshake:
-
-    def __init__(self, mtype, cipher, key):
-        self.mtype = mtype
-        self.cipher = cipher
-        self.key = key
+    REQUEST = 0x03
+    REPLY = 0x04
+    RELAYING = 0x05
+    CLOSE = 0x06
