@@ -49,6 +49,7 @@ class TestXOR(TestCipher):
         e1, e2 = XOR(-1), XOR(999)
         data = b'test'
         self.assertEqual(e1.encrypt(data), e2.encrypt(data))
+        self.assertRaises(ValueError, XOR, [])
 
     def test_bench(self):
         cipher = XOR(2)

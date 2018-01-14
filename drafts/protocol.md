@@ -96,17 +96,18 @@ Request and response share the same format.
 CIPHER can be chained to perform diverse fuzzing,
 format of each CIPHER:
 ```
-+----+-----+
-| ID | KEY |
-+----+-----+
-| 2  |  4  |
-+----+-----+
++--------+------+---------+-----+
+|NAME.LEN| NAME | KEY.LEN | KEY |
++--------+------+---------+-----+
+|   1    | var  |    1    | var |
++--------+------+---------+-----+
 ```
 
-- ID: cipher id, from 0x0000 - 0xFFFE, 0xFFFF meams end of ciphers.
-- KEY: cipher key, may be zero.
+- NAME.LEN: length of cipher name, 0 means end of cipher chain
+- NAME: cipher name, case sensitive
+- KEY.LEN: length of cipher key, 0 means no key
+- KEY: cipher key, used to initialize cipher
 
-All ciphers are designed to accept a 4-byte integer as initial key.
 
 ## REQUEST
 The `ENC.DATA` part of REQUEST message is as follow:
