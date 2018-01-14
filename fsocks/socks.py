@@ -4,14 +4,14 @@ import ipaddress
 from enum import Enum, unique
 
 
-class ProxyError(Exception):
+class SocksError(Exception):
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
 
 
 @unique
-class VERSION(Enum):
+class VER(Enum):
     SOCKS4 = 0x04
     SOCKS5 = 0x05
 
@@ -51,21 +51,7 @@ class REP(Enum):
     ADDRESS_TYPE_NOT_SUPPORTED = 0x08
 
 
-class Packet:
-    """ Interface """
-
-    @classmethod
-    def from_stream(cls, stream, **kwargs):
-        pass
-
-    def to_bytes(self):
-        pass
-
-    def to_stream(self, stream):
-        return stream.write_all(self.to_bytes())
-
-
-class Message(Packet):
+class Message:
     """SOCKS message
     Request:
         +----+-----+-------+------+----------+----------+
@@ -80,7 +66,7 @@ class Message(Packet):
         | 1  |  1  | X'00' |  1   | Variable |    2     |
         +----+-----+-------+------+----------+----------+
     """
-    rsv = 0x00
+    RSV = 0x00
 
     def __init__(self, ver, msg, atype, addr):
         self.ver = ver
@@ -94,33 +80,32 @@ class Message(Packet):
 
     @classmethod
     def from_stream(cls, stream, request=True):
-        """ Throw SocketError """
-        ver, msg, rsv, atype = struct.unpack('!4B', stream.read_all(4))
-        if rsv != cls.rsv:
-            raise ProxyError(
+        ver, msg, rsv, atype = struct.unpack('!4B', stream.read(4))
+        if rsv != cls.RSV:
+            raise SocksError(
                 REP.GENERAL_SOCKS_SERVER_FAILURE,
                 'invalid RSV {}'.format(rsv))
         try:
-            ver = VERSION(ver)
+            ver = VER(ver)
             msg = CMD(msg) if request else REP(msg)
             atype = ATYPE(atype)
         except ValueError as e:
-            raise ProxyError(
+            raise SocksError(
                 REP.GENERAL_SOCKS_SERVER_FAILURE,
-                e.message)
+                str(e))
         if atype is ATYPE.DOMAINNAME:
-            alen = struct.unpack('!B', stream.read_all(1))[0]
-            host = stream.read_all(alen).decode()
+            alen = struct.unpack('!B', stream.read(1))[0]
+            host = stream.read(alen).decode()
         elif atype is ATYPE.IPV4:
-            host = ipaddress.IPv4Address(stream.read_all(4)).compressed
+            host = ipaddress.IPv4Address(stream.read(4)).compressed
         elif atype is ATYPE.IPV6:
-            host = ipaddress.IPv6Address(stream.read_all(16)).compressed
-        port = struct.unpack('!H', stream.read_all(2))[0]
+            host = ipaddress.IPv6Address(stream.read(16)).compressed
+        port = struct.unpack('!H', stream.read(2))[0]
         return cls(ver, msg, atype, (host, port))
 
     def to_bytes(self):
         data = struct.pack('!4B', self.ver.value, self.msg.value,
-                           self.rsv, self.atype.value)
+                           self.RSV, self.atype.value)
         if self.atype is ATYPE.DOMAINNAME:
             alen = len(self.addr[0].encode())
             data += struct.pack('!B{}s'.format(alen),
@@ -139,7 +124,7 @@ class Message(Packet):
             self.addr[0], self.addr[1])
 
 
-class ClientGreeting(Packet):
+class ClientGreeting:
 
     def __init__(self, ver, nmethods, methods):
         self.ver = ver
@@ -148,10 +133,10 @@ class ClientGreeting(Packet):
 
     @classmethod
     def from_stream(cls, stream):
-        ver, nmethods = struct.unpack('!BB', stream.read_all(2))
+        ver, nmethods = struct.unpack('!BB', stream.read(2))
         methods = struct.unpack('!{}B'.format(nmethods),
-                                stream.read_all(nmethods))
-        ver = VERSION(ver)
+                                stream.read(nmethods))
+        ver = VER(ver)
         methods = list(map(METHOD, methods))
         return cls(ver, nmethods, methods)
 
@@ -167,17 +152,17 @@ class ClientGreeting(Packet):
                                    [m.name for m in self.methods])
 
 
-class ServerGreeting(Packet):
+class ServerGreeting:
 
-    def __init__(self, ver=VERSION.SOCKS5,
+    def __init__(self, ver=VER.SOCKS5,
                  method=METHOD.NO_AUTHENTICATION_REQUIRED):
         self.ver = ver
         self.method = method
 
     @classmethod
     def from_stream(cls, stream):
-        ver, method = struct.unpack('!BB', stream.read_all(2))
-        ver = VERSION(ver)
+        ver, method = struct.unpack('!BB', stream.read(2))
+        ver = VER(ver)
         method = METHOD(method)
         return cls(ver, method)
 
@@ -185,4 +170,4 @@ class ServerGreeting(Packet):
         return struct.pack('!BB', self.ver.value, self.method.value)
 
     def __str__(self):
-        return '<{} {}>'.format(self.ver.name, self.method)
+        return '<{} {}>'.format(self.ver.name, self.method.name)

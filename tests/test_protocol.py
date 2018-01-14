@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import io
+import struct
 from unittest import TestCase
 from fsocks import protocol
 from fsocks import fuzzing
@@ -21,13 +22,15 @@ class TestHello(TestCase):
     def test_corner(self):
         msg = Hello()
         msg.mtype = protocol.MTYPE.HANDSHAKE
-        self.assertRaises(ProtocolError,
-                          Hello.from_stream, io.BytesIO(msg.to_bytes()))
+        self.assertRaises(ProtocolError, Hello.from_stream,
+                          io.BytesIO(msg.to_bytes()))
+        self.assertRaises(ProtocolError, Hello.from_stream,
+                          io.BytesIO(struct.pack('!HBI', msg.magic, 0, 0)))
+        self.assertRaises(ProtocolError, Hello.from_stream,
+                          io.BytesIO(b'\x00\x11'))
         msg.magic = 0x3389
-        self.assertRaises(ProtocolError,
-                          Hello.from_stream, io.BytesIO(msg.to_bytes()))
-        self.assertRaises(ProtocolError,
-                          Hello.from_stream, io.BytesIO(b'\x00\x11'))
+        self.assertRaises(ProtocolError, Hello.from_stream,
+                          io.BytesIO(msg.to_bytes()))
 
 
 class TestHandShake(TestCase):

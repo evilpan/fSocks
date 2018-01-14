@@ -7,9 +7,6 @@ from functools import wraps
 from . import logger, fuzzing
 
 
-MAGIC = 0x1986
-
-
 class ProtocolError(Exception):
     pass
 
@@ -49,26 +46,36 @@ class MTYPE(Enum):
 
 
 class Message:
-    def __init__(self, mtype):
-        self.magic = MAGIC
-        self.mtype = mtype
+    magic = 0x1986
+    mtype = None
+
+    @staticmethod
+    def read_common(stream):
+        magic, mtype, nonce = struct.unpack(
+            '!HBI', stream.read(2+1+4))
+        if magic != Message.magic:
+            raise ProtocolError('Invalid magic')
+        try:
+            mtype = MTYPE(mtype)
+        except ValueError:
+            raise ProtocolError('Invalid Mtype 0x%x' % mtype)
+        return mtype, nonce
 
 
 class Hello(Message):
+    mtype = MTYPE.HELLO
+
     def __init__(self, nonce=None, timestamp=None):
-        super().__init__(MTYPE.HELLO)
         self.nonce = nonce or randint(0, 0xFFFF)
         self.timestamp = timestamp or int(time())
 
     @classmethod
     @safe_process
     def from_stream(cls, s):
-        magic, mtype, nonce, timestamp = struct.unpack(
-            '!HBIQ', s.read(2+1+4+8))
-        if magic != MAGIC:
-            raise ProtocolError('HELLO magic error')
-        if mtype != MTYPE.HELLO.value:
-            raise ProtocolError('MTYPE error')
+        mtype, nonce = Message.read_common(s)
+        timestamp, = struct.unpack('!Q', s.read(8))
+        if mtype is not MTYPE.HELLO:
+            raise ProtocolError('Not a Hello message')
         return cls(nonce, timestamp)
 
     @safe_process
@@ -83,8 +90,9 @@ class Hello(Message):
 
 
 class HandShake(Message):
+    mtype = MTYPE.HANDSHAKE
+
     def __init__(self, nonce=None, timestamp=None, cipher=None):
-        super().__init__(MTYPE.HANDSHAKE)
         self.nonce = nonce or randint(0, 0xFFFF)
         self.timestamp = timestamp or int(time())
         if cipher is None:
@@ -97,12 +105,10 @@ class HandShake(Message):
     @classmethod
     @safe_process
     def from_stream(cls, s):
-        magic, mtype, nonce, timestamp = struct.unpack(
-            '!HBIQ', s.read(2+1+4+8))
-        if magic != MAGIC:
-            raise ProtocolError('HELLO magic error')
-        if mtype != MTYPE.HANDSHAKE.value:
-            raise ProtocolError('MTYPE error')
+        mtype, nonce = Message.read_common(s)
+        timestamp, = struct.unpack('!Q', s.read(8))
+        if mtype is not MTYPE.HANDSHAKE:
+            raise ProtocolError('Not a HandShake message')
         cipher_list = []
         while True:
             name_len, = struct.unpack('!B', s.read(1))
@@ -133,3 +139,13 @@ class HandShake(Message):
 
     def __str__(self):
         return '<HandShake {}>'.format(self.cipher)
+
+
+class Request(Message):
+    def __init__(self, peer):
+        self.peer = peer
+
+    @staticmethod
+    @safe_process
+    def from_stream(cls, s):
+        pass
