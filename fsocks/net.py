@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 import select
 import struct
+import io
 from .log import logger
 
 
-class SocketError(Exception):
+class NetworkError(Exception):
     pass
 
 
-class Stream:
+class SockStream:
     """A thin wrapper for socket"""
 
     def __init__(self, sock):
@@ -20,40 +21,48 @@ class Stream:
         except (ConnectionRefusedError,
                 TimeoutError,
                 OSError) as e:
-            raise SocketError(str(e))
+            raise NetworkError(str(e))
 
-    def read(self, nbytes):
+    def read(self, nbytes, insist=True):
+        if insist:
+            return self.read_all(nbytes)
+        # read some data
         try:
-            return self.sock.recv(nbytes)
+            read = self.sock.recv(nbytes)
         except (OSError, TimeoutError) as e:
-            raise SocketError(str(e))
+            raise NetworkError(str(e))
+        if len(read) == 0:
+            raise NetworkError('connection closed')
+        return read
 
     def read_all(self, nbytes):
         read = b''
         left = nbytes
         while left > 0:
-            data = self.read(left)
+            data = self.sock.recv(left)
             n = len(data)
             if n == 0:
-                raise SocketError('connection closed')
+                raise NetworkError('connection closed')
             read += data
             left -= n
         return read
 
-    def write(self, data):
+    def write(self, data, insist=True):
+        if insist:
+            return self.write_all(data)
         try:
             return self.sock.send(data)
         except (OSError, TimeoutError) as e:
-            raise SocketError(str(e))
+            raise NetworkError(str(e))
 
     def write_all(self, data):
         sent = 0
         while sent < len(data):
-            n = self.write(data[sent:])
+            n = self.write(data[sent:], insist=False)
             if n == 0:
-                raise SocketError('The buffer is full')
+                raise NetworkError('The buffer is full')
             if n < 0:
-                raise SocketError('internal error')
+                raise NetworkError('internal error')
             sent += n
         return sent
 
@@ -85,6 +94,6 @@ def pipe(plain, fuzz, cipher):
             fuzz.write_all(struct.pack('!H', len(edata)))
             fuzz.write_all(edata)
         if fuzz.sock in rlist:
-            elen = struct.unpack('!H', fuzz.read_all(2))[0]
-            edata = fuzz.read_all(elen)
+            elen = struct.unpack('!H', fuzz.read(2))[0]
+            edata = fuzz.read(elen)
             plain.write_all(cipher.decrypt(edata))

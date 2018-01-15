@@ -12,60 +12,78 @@ class CipherError(ValueError):
 class BaseCipher:
 
 
-    def __init__(self, key: bytes):
+    def __init__(self, key: bytes=b''):
         self.key = key
 
-    def encrypt(self, data: bytes):
+    def encrypt(self, data):
+        pass
+
+    def decrypt(self, data):
+        pass
+
+    def safe_encrypt(self, data: bytes):
         """
         :param data: input plain data
         :rtype: bytes
         """
         try:
-            return self.do_encrypt(data)
+            return self.encrypt(data)
         except (IndexError, ValueError) as e:
             raise CipherError('{}: {}'.format(data, e))
             if logger.level == logging.DEBUG:
                 traceback.print_exc()
 
-    def decrypt(self, data: bytes):
+    def safe_decrypt(self, data: bytes):
         """
         :param data: input encrypted data
         :rtype: bytes
         """
         try:
-            return self.do_decrypt(data)
+            return self.decrypt(data)
         except (IndexError, ValueError) as e:
             if logger.level == logging.DEBUG:
                 traceback.print_exc()
             else:
                 raise CipherError('{}: {}'.format(data, e))
 
-    def do_encrypt(self, data):
-        pass
-
-    def do_decrypt(self, data):
-        pass
-
-    def name(self):
+    @property
+    def _name(self):
         return self.__class__.__name__
 
-    def key(self):
+    @property
+    def _key(self):
         return getattr(self, 'key', b'')
+
+    def to_bytes(self):
+        name_len = len(self._name)
+        key_len = len(self._key)
+        return struct.pack('!B{}sB{}s'.format(name_len, key_len),
+                           name_len, self._name.encode(),
+                           key_len, self._key)
 
 
 class CipherChain(BaseCipher):
 
-    def __init__(self, ciphers):
-        self.ciphers = ciphers
+    def __init__(self, cipher_list):
+        self.cipher_list = cipher_list
 
-    def do_encrypt(self, data):
+    def encrypt(self, data):
         result = data
-        for cipher in self.ciphers:
+        for cipher in self.cipher_list:
             result = cipher.encrypt(result)
         return result
 
-    def do_decrypt(self, data):
+    def decrypt(self, data):
         result = data
-        for cipher in self.ciphers:
+        for cipher in self.cipher_list:
             result = cipher.decrypt(result)
         return result
+
+    def to_bytes(self):
+        result = b''
+        for cipher in self.cipher_list:
+            result += cipher.to_bytes()
+        return result
+
+    def __str__(self):
+        return ','.join([c._name for c in self.cipher_list])

@@ -30,7 +30,22 @@ def read_packet(stream):
     mtype = edata[2]
     mtype = MTYPE(mtype)
     # TODO: decrypt edata
-    return io.BytesIO(edata)
+    s = io.BytesIO(edata)
+    if mtype is MTYPE.HELLO:
+        return Hello.from_stream(s)
+    elif mtype is MTYPE.HANDSHAKE:
+        return HandShake.from_stream(s)
+    elif mtype is MTYPE.REQUEST:
+        return Request.from_stream(s)
+    elif mtype is MTYPE.REPLY:
+        return Reply.from_stream(s)
+    elif mtype is MTYPE.RELAYING:
+        return Relaying.from_stream(s)
+    elif mtype is MTYPE.CLOSE:
+        return Close.from_stream(s)
+    else:
+        return None
+
 
 @safe_process
 def form_packet(data, etype=0):
@@ -182,6 +197,9 @@ class _SocksWrapper(Message):
         return self.common_bytes() \
             + struct.pack('!II', self.src, self.dst) \
             + self.msg.to_bytes()
+
+    def __str__(self):
+        return '[{} {}]'.format(self.mtype.name, self.msg)
 
 
 class Request(_SocksWrapper):

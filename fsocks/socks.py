@@ -68,26 +68,26 @@ class Message:
     """
     RSV = 0x00
 
-    def __init__(self, ver, msg, atype, addr):
+    def __init__(self, ver, code, atype, addr):
         self.ver = ver
-        self.msg = msg
+        self.code = code
         self.atype = atype
         self.addr = addr
 
     @property
     def is_request(self):
-        return self.msg in CMD
+        return self.code in CMD
 
     @classmethod
     def from_stream(cls, stream, request=True):
-        ver, msg, rsv, atype = struct.unpack('!4B', stream.read(4))
+        ver, code, rsv, atype = struct.unpack('!4B', stream.read(4))
         if rsv != cls.RSV:
             raise SocksError(
                 REP.GENERAL_SOCKS_SERVER_FAILURE,
                 'invalid RSV {}'.format(rsv))
         try:
             ver = VER(ver)
-            msg = CMD(msg) if request else REP(msg)
+            code = CMD(code) if request else REP(code)
             atype = ATYPE(atype)
         except ValueError as e:
             raise SocksError(
@@ -101,10 +101,10 @@ class Message:
         elif atype is ATYPE.IPV6:
             host = ipaddress.IPv6Address(stream.read(16)).compressed
         port = struct.unpack('!H', stream.read(2))[0]
-        return cls(ver, msg, atype, (host, port))
+        return cls(ver, code, atype, (host, port))
 
     def to_bytes(self):
-        data = struct.pack('!4B', self.ver.value, self.msg.value,
+        data = struct.pack('!4B', self.ver.value, self.code.value,
                            self.RSV, self.atype.value)
         if self.atype is ATYPE.DOMAINNAME:
             alen = len(self.addr[0].encode())
@@ -119,7 +119,7 @@ class Message:
 
     def __str__(self):
         return '<{} {} {} {}:{}>'.format(
-            self.ver.name, self.msg.name,
+            self.ver.name, self.code.name,
             self.atype.name,
             self.addr[0], self.addr[1])
 

@@ -3,6 +3,6 @@
     "client_port": 1080,
     "server_host": "0.0.0.0",
     "server_port": 1081,
-    "method": "sha256",
+    "method": "AES",
     "password": "my_password"
 }

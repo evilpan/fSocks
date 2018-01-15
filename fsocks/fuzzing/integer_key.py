@@ -8,13 +8,13 @@ __all__ = ['XOR', 'RailFence']
 
 class IntKeyCipher(BaseCipher):
     """ class that accepts one int value as initial key """
-    def __init__(self, key):
+    def __init__(self, key=0):
         if isinstance(key, int):
             self.ikey = key
             self.key = struct.pack('!I', abs(key))
         elif isinstance(key, bytes):
             self.key = key
-            self.ikey, = struct.unpack('!I', key + b'\x00' * 4)
+            self.ikey, = struct.unpack('!I', key)
         else:
             raise ValueError('error type {} to initialize cipher'.format(
                 self.__class__))
@@ -22,10 +22,10 @@ class IntKeyCipher(BaseCipher):
 
 class XOR(IntKeyCipher):
 
-    def do_encrypt(self, data):
+    def encrypt(self, data):
         return self.xor_codec(data)
 
-    def do_decrypt(self, data):
+    def decrypt(self, data):
         return self.xor_codec(data)
 
     def xor_codec(self, data):
@@ -43,12 +43,12 @@ class RailFence(IntKeyCipher):
     We don't strip the non-ASCII here
     """
 
-    def do_encrypt(self, data):
+    def encrypt(self, data):
         if not self.reasonable(data):
             return data
         return bytes(self.fence(data))
 
-    def do_decrypt(self, data):
+    def decrypt(self, data):
         if not self.reasonable(data):
             return data
         lst = range(len(data))

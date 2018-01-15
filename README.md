@@ -1,8 +1,7 @@
 fSocks
 ===
 
-fSocks is a new version of fuzzy SOCKS proxy to bypass middlewares
-like firewall. It's intented to be highly customisable.
+A hackable socks5 proxy.
 
 **CURRENTLY WORKING IN PROGRESS**
 

@@ -21,10 +21,10 @@ class CodecCipher(BaseCipher):
     def decode(self, data):
         pass
 
-    def do_encrypt(self, data):
+    def encrypt(self, data):
         return self.encode(data)
 
-    def do_decrypt(self, data):
+    def decrypt(self, data):
         return self.decode(data)
 
 
@@ -126,4 +126,4 @@ class AtBash(CodecCipher):
         return bytes(result)
 
     def decode(self, data):
-        return self.do_encrypt(data)
+        return self.encrypt(data)
