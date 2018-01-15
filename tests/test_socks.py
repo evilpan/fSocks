@@ -16,7 +16,7 @@ class TestMessage(TestCase):
                          msg.to_bytes())
         msg1 = Message.from_stream(io.BytesIO(msg.to_bytes()))
         self.assertEqual(msg.ver, msg1.ver)
-        self.assertEqual(msg.msg, msg1.msg)
+        self.assertEqual(msg.code, msg1.code)
         self.assertEqual(msg.atype, msg1.atype)
         self.assertEqual(msg.addr, msg1.addr)
         self.assertEqual(msg.to_bytes(), msg1.to_bytes())

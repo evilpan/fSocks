@@ -2,3 +2,6 @@
 __pycache__/
 *.swp
 *.swo
+.coverage
+.cache/
+htmlcov/

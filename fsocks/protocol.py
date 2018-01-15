@@ -1,10 +1,10 @@
+import io
 import struct
-import inspect
 from random import randint
 from time import time
 from enum import Enum, unique
 from functools import wraps
-from . import logger, fuzzing
+from . import logger, fuzzing, socks
 
 
 class ProtocolError(Exception):
@@ -22,12 +22,20 @@ def safe_process(func):
     return func_wrapper
 
 
-def all_ciphers():
-    clist = []
-    for name, obj in inspect.getmembers(fuzzing):
-        if name != 'CipherChain' and inspect.isclass(obj):
-            clist.append(obj())
-    return clist
+@safe_process
+def read_packet(stream):
+    etype, = struct.unpack('!H', stream.read(2))
+    elen, = struct.unpack('!I', stream.read(4))
+    edata = stream.read(elen)
+    mtype = edata[2]
+    mtype = MTYPE(mtype)
+    # TODO: decrypt edata
+    return io.BytesIO(edata)
+
+@safe_process
+def form_packet(data, etype=0):
+    return struct.pack('!HI', etype, len(data)) \
+        + data
 
 @unique
 class ENCTYPE(Enum):
@@ -49,6 +57,9 @@ class Message:
     magic = 0x1986
     mtype = None
 
+    def __init__(self, **kwargs):
+        self.nonce = kwargs.pop('nonce', randint(0, 0xFFFF))
+
     @staticmethod
     def read_common(stream):
         magic, mtype, nonce = struct.unpack(
@@ -61,13 +72,20 @@ class Message:
             raise ProtocolError('Invalid Mtype 0x%x' % mtype)
         return mtype, nonce
 
+    def common_bytes(self):
+        return struct.pack('!HBI', self.magic,
+                           self.mtype.value, self.nonce)
+
+    def to_packet(self):
+        return form_packet(self.to_bytes(), etype=0)
+
 
 class Hello(Message):
     mtype = MTYPE.HELLO
 
-    def __init__(self, nonce=None, timestamp=None):
-        self.nonce = nonce or randint(0, 0xFFFF)
+    def __init__(self, timestamp=None, **kwargs):
         self.timestamp = timestamp or int(time())
+        super().__init__(**kwargs)
 
     @classmethod
     @safe_process
@@ -76,13 +94,12 @@ class Hello(Message):
         timestamp, = struct.unpack('!Q', s.read(8))
         if mtype is not MTYPE.HELLO:
             raise ProtocolError('Not a Hello message')
-        return cls(nonce, timestamp)
+        return cls(timestamp, nonce=nonce)
 
     @safe_process
     def to_bytes(self):
-        return struct.pack('!HBIQ', self.magic,
-                           self.mtype.value,
-                           self.nonce, self.timestamp)
+        return self.common_bytes() + \
+            struct.pack('!Q', self.timestamp)
 
     def __str__(self):
         return '<{} {} {}>'.format(
@@ -92,15 +109,15 @@ class Hello(Message):
 class HandShake(Message):
     mtype = MTYPE.HANDSHAKE
 
-    def __init__(self, nonce=None, timestamp=None, cipher=None):
-        self.nonce = nonce or randint(0, 0xFFFF)
+    def __init__(self, cipher=None, timestamp=None, **kwargs):
         self.timestamp = timestamp or int(time())
         if cipher is None:
-            self.cipher = fuzzing.CipherChain(all_ciphers())
+            self.cipher = fuzzing.CipherChain(fuzzing.cipher_list())
         elif isinstance(cipher, fuzzing.CipherChain):
             self.cipher = cipher
         else:
-            raise ProtocolError('Cipher must be contained in chain')
+            raise ProtocolError('Cipher must be wrapped in chain')
+        super().__init__(**kwargs)
 
     @classmethod
     @safe_process
@@ -127,13 +144,12 @@ class HandShake(Message):
         logger.debug('Received {} ciphers'.format(len(cipher_list)))
         if len(cipher_list) == 0:
             raise ProtocolError('No cipher available')
-        return cls(nonce, timestamp, fuzzing.CipherChain(cipher_list))
+        return cls(fuzzing.CipherChain(cipher_list), timestamp, nonce=nonce)
 
     @safe_process
     def to_bytes(self):
-        result = struct.pack('!HBIQ', self.magic,
-                             self.mtype.value,
-                             self.nonce, self.timestamp)
+        result = self.common_bytes() + \
+            struct.pack('!Q', self.timestamp)
         result += self.cipher.to_bytes() + struct.pack('!B', 0) # end-of-ciphers
         return result
 
@@ -141,11 +157,79 @@ class HandShake(Message):
         return '<HandShake {}>'.format(self.cipher)
 
 
-class Request(Message):
-    def __init__(self, peer):
-        self.peer = peer
+class _SocksWrapper(Message):
+    mtype = None
+    is_request = None
 
-    @staticmethod
+    def __init__(self, src, dst, msg, **kwargs):
+        # set unknown dst to 0
+        self.src = src
+        self.dst = dst
+        self.msg = msg
+        super().__init__(**kwargs)
+
+    @classmethod
     @safe_process
     def from_stream(cls, s):
-        pass
+        mtype, nonce = Message.read_common(s)
+        if mtype is not cls.mtype:
+            raise ProtocolError('Not a {} message'.format(cls.mtype.name))
+        src, dst = struct.unpack('!II', s.read(8))
+        msg = socks.Message.from_stream(s, request=cls.is_request)
+        return cls(src, dst, msg, nonce=nonce)
+
+    def to_bytes(self):
+        return self.common_bytes() \
+            + struct.pack('!II', self.src, self.dst) \
+            + self.msg.to_bytes()
+
+
+class Request(_SocksWrapper):
+    mtype = MTYPE.REQUEST
+    is_request = True
+
+
+class Reply(_SocksWrapper):
+    mtype = MTYPE.REPLY
+    is_request = False
+
+
+class Relaying(Message):
+    mtype = MTYPE.RELAYING
+    def __init__(self, src, dst, payload, **kwargs):
+        self.src = src
+        self.dst = dst
+        self.payload = payload
+        super().__init__(**kwargs)
+
+    @classmethod
+    @safe_process
+    def from_stream(cls, s):
+        mtype, nonce = Message.read_common(s)
+        if mtype is not cls.mtype:
+            raise ProtocolError('Not a Relay message')
+        src, dst = struct.unpack('!II', s.read(8))
+        payload = s.read() # all remaining
+        return cls(src, dst, payload, nonce=nonce)
+
+    def to_bytes(self):
+        return self.common_bytes() \
+            + struct.pack('!II', self.src, self.dst) \
+            + self.payload
+
+
+class Close(Message):
+    mtype = MTYPE.CLOSE
+    def __init__(self, src, **kwargs):
+        self.src = src
+        super().__init__(**kwargs)
+
+    @classmethod
+    @safe_process
+    def from_stream(cls, s):
+        mtype, nonce = Message.read_common(s)
+        src, = struct.unpack('!I', s.read(4))
+        return cls(src, nonce=nonce)
+
+    def to_bytes(self):
+        return self.common_bytes() + struct.pack('!I', self.src)

@@ -112,48 +112,40 @@ format of each CIPHER:
 ## REQUEST
 The `ENC.DATA` part of REQUEST message is as follow:
 ```
-+---------+-------+-------+-------+---------------+
-|  MAGIC  | MTYPE | NONCE | FROM  | SOCKS REQUEST |
-+---------+-------+-------+-------+---------------+
-| X'1986' | X'03' |   4   |   4   |    Variable   |
-+---------+-------+-------+-------+---------------+
++---------+-------+-------+-----+-----+---------------+
+|  MAGIC  | MTYPE | NONCE | SRC | DST | SOCKS REQUEST |
++---------+-------+-------+-----+-----+---------------+
+| X'1986' | X'03' |   4   |  4  |  4  |    Variable   |
++---------+-------+-------+-----+-----+---------------+
 ```
 
-FROM is user identifier, such as socket.fileno.
+SRC/DST is user identifier, such as socket.fileno.
 SOCKS REQUEST is the same as RFC1928
 
 ## REPLY
-The `ENC.DATA` part of REPLY message is as follow:
-```
-+---------+-------+-------+-------+--------------+
-|  MAGIC  | MTYPE | NONCE | FROM  | SOCKS REPLY  |
-+---------+-------+-------+-------+--------------+
-| X'1986' | X'04' |   4   |   4   |   Variable   |
-+---------+-------+-------+-------+--------------+
-```
+REPLY is same as REQUEST except the MTYPE field.
 
-FROM is remote identifier, such as socket.fileno.
-SOCKS REQUEST is the same as RFC1928
 
 ## RELAYING
 The `ENC.DATA` part of RELAYING message is as follow:
 ```
-+---------+-------+-------+------+-----+---------------+
-|  MAGIC  | MTYPE | NONCE | FROM | TO  |     DATA      |
-+---------+-------+-------+------+-----+---------------+
-| X'1986' | X'05' |   4   |  4   |  4  |  varialble    |
-+---------+-------+-------+------+-----+---------------+
++---------+-------+-------+-----+-----+---------------+
+|  MAGIC  | MTYPE | NONCE | SRC | DST |     DATA      |
++---------+-------+-------+-----+-----+---------------+
+| X'1986' | X'05' |   4   |  4  |  4  |  varialble    |
++---------+-------+-------+-----+-----+---------------+
 ```
-FROM and TO are remote or user identifier respectively.
+SRC and DST are remote or user identifier respectively.
+DATA length = ENC.LEN - header.length
 
 ## CLOSE
 The `ENC.DATA` part of CLOSE message is as follow:
 ```
-+---------+-------+-------+-------+
-|  MAGIC  | MTYPE | NONCE | FROM  |
-+---------+-------+-------+-------+
-| X'1986' | X'06' |   4   |   4   |
-+---------+-------+-------+-------+
++---------+-------+-------+-----+
+|  MAGIC  | MTYPE | NONCE | SRC |
++---------+-------+-------+-----+
+| X'1986' | X'06' |   4   |  4  |
++---------+-------+-------+-----+
 ```
 When client/server receive CLOSE message, he should known the associated peer
 and inform it.
