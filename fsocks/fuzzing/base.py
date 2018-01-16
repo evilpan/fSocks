@@ -75,7 +75,7 @@ class CipherChain(BaseCipher):
 
     def decrypt(self, data):
         result = data
-        for cipher in self.cipher_list:
+        for cipher in reversed(self.cipher_list):
             result = cipher.decrypt(result)
         return result
 
@@ -86,4 +86,4 @@ class CipherChain(BaseCipher):
         return result
 
     def __str__(self):
-        return ','.join([c._name for c in self.cipher_list])
+        return '->'.join([c._name for c in self.cipher_list])

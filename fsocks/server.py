@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import socket
 import struct
+import asyncio
 from threading import Thread
 from fsocks import logger, config, protocol, fuzzing
 from fsocks.net import pipe, NetworkError, SockStream

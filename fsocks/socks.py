@@ -103,6 +103,28 @@ class Message:
         port = struct.unpack('!H', stream.read(2))[0]
         return cls(ver, code, atype, (host, port))
 
+    @classmethod
+    async def from_reader(cls, reader, request=True):
+        head = await reader.readexactly(4)
+        ver, code, rsv, atype = struct.unpack('!4B', head)
+        ver = VER(ver)
+        code = CMD(code) if request else REP(code)
+        atype = ATYPE(atype)
+        if atype is ATYPE.DOMAINNAME:
+            data = await reader.readexactly(1)
+            alen, = struct.unpack('!B', data)
+            host = (await reader.readexactly(alen)).decode()
+        elif atype is ATYPE.IPV4:
+            data = await reader.readexactly(4)
+            host = ipaddress.IPv4Address(data).compressed
+        elif atype is ATYPE.IPV6:
+            data = await reader.readexactly(16)
+            host = ipaddress.IPv6Address(data).compressed
+        data = await reader.readexactly(2)
+        port, = struct.unpack('!H', data)
+        return cls(ver, code, atype, (host, port))
+
+
     def to_bytes(self):
         data = struct.pack('!4B', self.ver.value, self.code.value,
                            self.RSV, self.atype.value)

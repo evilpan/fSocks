@@ -2,6 +2,7 @@
 import select
 import struct
 import io
+import asyncio
 from .log import logger
 
 
@@ -12,8 +13,9 @@ class NetworkError(Exception):
 class SockStream:
     """A thin wrapper for socket"""
 
-    def __init__(self, sock):
+    def __init__(self, sock, loop=None):
         self.sock = sock
+        # self.loop = asyncio.get_event_loop() if loop is None else loop
 
     def connect(self, addr):
         try:
@@ -23,13 +25,18 @@ class SockStream:
                 OSError) as e:
             raise NetworkError(str(e))
 
+    async def async_connect(self, addr):
+        return await self.loop.sock_connect(addr)
+
     def read(self, nbytes, insist=True):
         if insist:
             return self.read_all(nbytes)
         # read some data
         try:
             read = self.sock.recv(nbytes)
-        except (OSError, TimeoutError) as e:
+        except (OSError,
+                TimeoutError,
+                ConnectionResetError) as e:
             raise NetworkError(str(e))
         if len(read) == 0:
             raise NetworkError('connection closed')
@@ -47,12 +54,32 @@ class SockStream:
             left -= n
         return read
 
+    async def async_read(self, nbytes, insist=True):
+        if insist:
+            return self.async_read_all(self, nbytes)
+        data = await self.loop.sock_recv(self.sock, nbytes)
+        return data
+
+    async def async_read_all(self, nbytes):
+        read = b''
+        left = nbytes
+        while left > 0:
+            data = await self.loop.sock_recv(sock, left)
+            n = len(data)
+            if n == 0:
+                raise NetworkError('connection closed')
+            read += data
+            left -= n
+        return read
+
     def write(self, data, insist=True):
         if insist:
             return self.write_all(data)
         try:
             return self.sock.send(data)
-        except (OSError, TimeoutError) as e:
+        except (OSError,
+                TimeoutError,
+                ConnectionResetError) as e:
             raise NetworkError(str(e))
 
     def write_all(self, data):

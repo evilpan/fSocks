@@ -21,16 +21,10 @@ def safe_process(func):
         return result
     return func_wrapper
 
-
-@safe_process
-def read_packet(stream):
-    etype, = struct.unpack('!H', stream.read(2))
-    elen, = struct.unpack('!I', stream.read(4))
-    edata = stream.read(elen)
-    mtype = edata[2]
+def get_message(data):
+    mtype = data[2]
     mtype = MTYPE(mtype)
-    # TODO: decrypt edata
-    s = io.BytesIO(edata)
+    s = io.BytesIO(data)
     if mtype is MTYPE.HELLO:
         return Hello.from_stream(s)
     elif mtype is MTYPE.HANDSHAKE:
@@ -46,6 +40,23 @@ def read_packet(stream):
     else:
         return None
 
+@safe_process
+def read_packet(stream):
+    etype, = struct.unpack('!H', stream.read(2))
+    elen, = struct.unpack('!I', stream.read(4))
+    edata = stream.read(elen)
+    # TODO: decrypt edata
+    return get_message(edata)
+
+@safe_process
+async def async_read_packet(reader):
+    data = await reader.readexactly(2)
+    etype, = struct.unpack('!H', data)
+    data = await reader.readexactly(4)
+    elen, = struct.unpack('!I', data)
+    edata = await reader.readexactly(elen)
+    # TODO: decrypt data
+    return get_message(edata)
 
 @safe_process
 def form_packet(data, etype=0):

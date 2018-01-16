@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
+import time
 import socket
 from threading import Thread
+import asyncio
+import sys
 from fsocks import logger, config, fuzzing, protocol, socks
 from fsocks.socks import Message, ClientGreeting, ServerGreeting, SocksError
 from fsocks.net import SockStream, pipe, NetworkError
@@ -127,6 +130,7 @@ def auth():
 
 
 def main():
+    loop = asyncio.get_event_loop()
     config.load_args()
     server, cipher = auth()
     server_thread = Thread(target=server_loop, args=(server,))
