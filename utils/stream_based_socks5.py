@@ -7,6 +7,9 @@ async def pipe(name, reader, writer):
     while True:
         try:
             data = await reader.read(2048)
+        except ConnectionResetError as e:
+            logger.warn('connection reset by ' + name)
+            break
         except asyncio.CancelledError as e:
             logger.debug('pipe canceled.')
             break
@@ -57,8 +60,20 @@ class Server:
         if msg.code is not socks.CMD.CONNECT:
             logger.warn('unhandle msg {}'.format(msg))
             return
-        remote_reader, remote_writer = await asyncio.open_connection(
-            msg.addr[0], msg.addr[1])
+        fut = asyncio.open_connection(msg.addr[0], msg.addr[1])
+        try:
+            remote_reader, remote_writer = await asyncio.wait_for(fut, 3)
+        except (asyncio.TimeoutError, ConnectionRefusedError):
+            logger.warn('connet {}:{} failed'.format(
+                msg.addr[0], msg.addr[1]))
+            err_reply = socks.Message(
+                ver=socks.VER.SOCKS5,
+                code=socks.REP.CONNECTION_REFUSED,
+                atype=socks.ATYPE.IPV4,
+                addr=('127.0.0.1', 9999))
+            client_writer.write(err_reply.to_bytes())
+            return
+
         logger.info('connected to {}:{}'.format(msg.addr[0], msg.addr[1]))
         # send REP
         bind_address = remote_writer.transport._extra['sockname']
