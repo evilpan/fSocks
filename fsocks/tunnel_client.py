@@ -4,6 +4,32 @@ import asyncio
 from fsocks import logger, config, fuzzing, protocol, socks
 
 
+class User:
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+        self.user_id = writer.transport._sock_fd
+        self.remote_id = None
+        self.task = None
+
+    @property
+    def actived(self):
+        return self.task is not None
+
+    @property
+    def established(self):
+        return self.remote_id is not None
+
+    def close(self):
+        self.remote_id = None
+        self.writer.close()
+        self.task.cancel()
+        self.task = None
+
+    def __str__(self):
+        return 'User(%d)' % self.user_id
+
+
 class TunnelClient:
     """
     fSocks tunnel client, and SOCK5 server for user
@@ -11,63 +37,69 @@ class TunnelClient:
 
     def __init__(self):
         self.socks_server = None
-        self.tunnel = None
-        self.users = {}  # task -> (reader, writer)
+        self.users = {}  # user_id -> User
         # Tunnel client
+        # TODO: one tunnel client may have many tunnels
         self.tunnel_task = None
         self.tunnel_reader = None
         self.tunnel_writer = None
         self.cipher = None
-        self.established = {}  # user_id -> remote_id
-        self.user_dict = {}  # user_id -> (reader, writer)
 
     def _accept_user(self, user_reader, user_writer):
         logger.debug('user accepted')
-        task = asyncio.Task(self._handle_user(user_reader, user_writer))
-        self.users[task] = (user_reader, user_writer)
+        user = User(user_reader, user_writer)
+        task = asyncio.Task(self._handle_user(user))
+        user.task = task
+        self.users[user.user_id] = user
 
         def user_done(task):
             logger.debug('user task done')
-            del self.users[task]
-
         task.add_done_callback(user_done)
 
-    def _user_closed(self, user_id):
-        logger.debug('user[{}] closed'.format(user_id))
-        if user_id in self.established:
-            remote_id = self.established[user_id]
+    def _user_closed(self, user):
+        logger.debug('{} closed'.format(user))
+        if user.established:
             self.tunnel_writer.write(
-                protocol.Close(user_id).to_packet())
-            del self.established[user_id]
-        if user_id in self.user_dict:
-            del self.user_dict[user_id]
+                protocol.Close(user.remote_id).to_packet())
 
+    def _delete_user(self, user):
+        user.close()
+        del self.users[user.user_id]
 
-    async def _pipe_user(self, user_id):
+    def _get_user(self, user_id):
+        if user_id in self.users:
+            user = self.users[user_id]
+            return user
+        return None
+
+    async def _pipe_user(self, user):
         # may start before connection to remote is established
-        user_reader = self.user_dict[user_id][0]
         while True:
-            data = await user_reader.read(2048)
+            try:
+                data = await user.reader.read(2048)
+            except ConnectionResetError:
+                logger.warn('user connection reset')
+                data = b''
             if len(data) == 0:
-                self._user_closed(user_id)
+                self._user_closed(user)
                 break
-            remote_id = self.established[user_id]
+            assert user.established
             packet = protocol.Relaying(
-                user_id, remote_id, data)
+                user.user_id, user.remote_id, data)
             self.tunnel_writer.write(packet.to_packet())
 
-    async def _handle_user(self, user_reader, user_writer):
+    async def _handle_user(self, user):
         # ignore client SOCKS5 greeting
-        data = await user_reader.read(256)
+        data = await user.reader.read(256)
         logger.debug('ignore SOCK5 greeting ({} bytes)'.format(len(data)))
         # response greeting without auth
         server_greeting = socks.ServerGreeting()
-        user_writer.write(server_greeting.to_bytes())
+        user.writer.write(server_greeting.to_bytes())
         # recv CMD
-        msg = await socks.Message.from_reader(user_reader)
+        msg = await socks.Message.from_reader(user.reader)
         if msg.code is not socks.CMD.CONNECT:
             logger.warn('unhandle msg {}'.format(msg))
-            user_writer.write(socks.Message(
+            user.writer.write(socks.Message(
                 socks.VER.SOCKS5,
                 socks.REP.COMMAND_NOT_SUPPORTED,
                 socks.ATYPE.IPV4,
@@ -75,12 +107,10 @@ class TunnelClient:
             return
         logger.info('connecting {}:{}'.format(msg.addr[0], msg.addr[1]))
         # send to tunnel
-        user_id = user_writer.transport._sock_fd
         connect_reqeust = protocol.Request(
-            user_id, 0, msg)
+            user.user_id, 0, msg)
         self.tunnel_writer.write(connect_reqeust.to_packet())
-        self.user_dict[user_id] = user_reader, user_writer
-        await self._pipe_user(user_id)
+        await self._pipe_user(user)
 
     async def _handle_tunnel(self, reader, writer):
         logger.debug('_handle_tunnel started')
@@ -91,25 +121,31 @@ class TunnelClient:
                 # and forward to corresponding user
                 remote_id = packet.src
                 user_id = packet.dst
-                if user_id not in self.user_dict:
+                user = self._get_user(user_id)
+                if user is None:
                     # Tell server to close
                     continue
-                user_writer = self.user_dict[user_id][1]
-                user_writer.write(packet.msg.to_bytes())
-                self.established[user_id] = remote_id
+                user.writer.write(packet.msg.to_bytes())
+                user.remote_id = remote_id
             elif packet.mtype is protocol.MTYPE.RELAYING:
                 # received raw data, forwarding
                 remote_id = packet.src
                 user_id = packet.dst
-                if user_id not in self.user_dict:
+                user = self._get_user(user_id)
+                if user is None:
                     # Tell server to close
                     continue
-                user_writer = self.user_dict[user_id][1]
-                user_writer.write(packet.payload)
+                user.writer.write(packet.payload)
             elif packet.mtype is protocol.MTYPE.CLOSE:
-                # remote closed, so we close every related user
-                remote_id = packet.src
-                logger.info('Close remote[{}]'.format(remote_id))
+                # remote closed, so we close related user
+                user_id = packet.src
+                logger.debug(
+                    'remote disconnected, close user {}'.format(user_id))
+                user = self._get_user(user_id)
+                if user is None:
+                    # ignore
+                    continue
+                self._delete_user(user)
             else:
                 logger.warn('unknown packet {}'.format(packet))
         logger.debug('_handle_tunnel exited')
@@ -138,6 +174,7 @@ class TunnelClient:
         def tunnel_done(task):
             # clean up here or there?
             logger.warn('tunnel is closed')
+            sys.exit(2)
         self.tunnel_task.add_done_callback(tunnel_done)
         return True
 
@@ -166,7 +203,8 @@ class TunnelClient:
         if self.tunnel_task is not None:
             self.tunnel_task.cancel()
         loop.run_until_complete(asyncio.wait(
-            list(self.users.keys()) + [self.tunnel_task]))
+            [u.task for u in self.users.values() if u.actived] +
+            [self.tunnel_task]))
 
 
 def main():

@@ -20,6 +20,7 @@ class Config:
             "server_port": 1081,
             "method": "sha256",
             "password": "my_password",
+            "timeout": 6.6
         }
 
     @property
