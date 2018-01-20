@@ -60,7 +60,7 @@ class TunnelClient:
         logger.debug('{} closed'.format(user))
         if user.established:
             self.tunnel_writer.write(
-                protocol.Close(user.remote_id).to_packet())
+                protocol.Close(user.user_id).to_packet())
 
     def _delete_user(self, user):
         user.close()
@@ -159,11 +159,13 @@ class TunnelClient:
         writer.write(hello_request.to_packet())
         # < Hello
         hello_response = await protocol.async_read_packet(reader)
+        logger.debug(hello_response)
         # > HandShake
         shake_request = protocol.HandShake(timestamp=hello_response.timestamp)
         writer.write(shake_request.to_packet())
         # < HandShake
         shake_response = await protocol.async_read_packet(reader)
+        logger.debug(shake_response)
         self.cipher = shake_response.cipher
         logger.info('negotiate done, using cipher: {}'.format(self.cipher))
         self.tunnel_reader = reader

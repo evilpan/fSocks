@@ -214,12 +214,12 @@ class TunnelServer:
 def main():
     config.load_args()
     loop = asyncio.get_event_loop()
-    tunnel = TunnelServer()
-    tunnel.start(loop)
+    ts = TunnelServer()
+    ts.start(loop)
     try:
         loop.run_forever()
     except KeyboardInterrupt:
-        tunnel.stop(loop)
+        ts.stop(loop)
         loop.close()
 
 

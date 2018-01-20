@@ -8,10 +8,15 @@ https://docs.python.org/3/library/asyncio-protocol.html#connection-callbacks
 """
 
 
+concurrent = 0
+
+
 class Server(asyncio.Protocol):
     INIT, CMD, DATA, CLOSED = 0, 1, 2, 3
 
     def connection_made(self, transport):
+        global concurrent
+        concurrent += 1
         logger.debug('{} connected'.format(
             transport.get_extra_info('peername')))
         self.transport = transport
@@ -20,6 +25,8 @@ class Server(asyncio.Protocol):
         self.state = self.INIT
 
     def connection_lost(self, exc):
+        global concurrent
+        concurrent -= 1
         logger.debug('connection to user lost')
         self.state = self.CLOSED
         if self.client_transport is not None:
@@ -35,7 +42,8 @@ class Server(asyncio.Protocol):
             self.state = self.CMD
         elif self.state == self.CMD:
             msg = socks.Message.from_stream(io.BytesIO(data))
-            logger.info(msg)
+            global concurrent
+            logger.info('connecting {}:{} ({})'.format(msg.addr[0], msg.addr[1], concurrent))
             bind_addr = ('127.0.0.1', 9999)
             if msg.code is not socks.CMD.CONNECT:
                 rep = socks.Message(socks.VER.SOCKS5,
@@ -97,6 +105,8 @@ class Client(asyncio.Protocol):
 
 
 def main():
+    import logging
+    logger.setLevel(logging.INFO)
     loop = asyncio.get_event_loop()
     host, port = '127.0.0.1', 1080
     logger.info('SOCKS5 server listen on {}:{}'.format(host, port))
