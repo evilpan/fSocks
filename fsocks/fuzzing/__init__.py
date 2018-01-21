@@ -10,6 +10,8 @@ def available_fuzz():
     flist = []
     this_module = sys.modules[__name__]
     for name, obj in inspect.getmembers(this_module):
-        if name != 'FuzzChain' and inspect.isclass(obj):
+        if name != 'FuzzChain' \
+                and inspect.isclass(obj) \
+                and getattr(obj, 'enabled'):
             flist.append(obj())
     return flist

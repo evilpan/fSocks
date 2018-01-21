@@ -67,7 +67,8 @@ class TunnelClient:
 
     def _delete_user(self, user):
         user.close()
-        del self.users[user.user_id]
+        if user.user_id in self.users:
+            del self.users[user.user_id]
 
     def _get_user(self, user_id):
         return self.users.get(user_id, None)
@@ -105,7 +106,11 @@ class TunnelClient:
         await self.safe_write(user.writer,
                               server_greeting.to_bytes())
         # recv CMD
-        msg = await socks.Message.from_reader(user.reader)
+        try:
+            msg = await socks.Message.from_reader(user.reader)
+        except asyncio.streams.IncompleteReadError:
+            self._delete_user(user)
+            return
         if msg.code is not socks.CMD.CONNECT:
             logger.warn('unhandle msg {}'.format(msg))
             rep = socks.Message(

@@ -15,6 +15,7 @@ class BaseFuzz:
     2. if initial key is None, use a (suitable)random one
     3. fuzz.decrypt(fuzz.encrypt(data)) === data
     """
+    enabled = True
 
     def __init__(self, key: bytes=None):
         pass

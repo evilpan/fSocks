@@ -3,6 +3,7 @@ import io
 import struct
 import asyncio
 import socket
+import random
 from enum import Enum, unique
 from fsocks import logger, config, protocol, socks
 from fsocks import fuzzing, cryption
@@ -204,10 +205,7 @@ class TunnelServer(asyncio.Protocol):
             if packet.mtype is not protocol.MTYPE.HANDSHAKE:
                 self.transport.abort()
                 self.state = self.CLOSING
-            nfuzzs = len(packet.fuzz.fuzz_list)
-            logger.info('client HandShake with {} fuzzing methods:\n{}'.format(
-                nfuzzs, packet.fuzz))
-            fuzz = fuzzing.FuzzChain(packet.fuzz.fuzz_list[:2])
+            fuzz = self.choose_fuzzer(packet.fuzz.fuzz_list)
             logger.info('choose {}'.format(fuzz))
             response = protocol.HandShake(fuzz=fuzz)
             self.transport.write(response.to_packet(self.cipher))
@@ -220,6 +218,15 @@ class TunnelServer(asyncio.Protocol):
             self.tunnel.handle_request(packet)
         else:
             logger.warn('tunel is closing')
+
+    def choose_fuzzer(self, fuzz_list):
+        nfuzzs = len(fuzz_list)
+        logger.info('client HandShake with {} fuzzing methods'.format(nfuzzs))
+        indexes = list(range(nfuzzs))
+        random.shuffle(indexes)
+        length = random.randint(1, 3)  # chaining too much fuzzers may be slow
+        indexes = indexes[:length]
+        return fuzzing.FuzzChain([fuzz_list[i] for i in indexes])
 
 
 def main():

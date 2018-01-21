@@ -5,7 +5,7 @@ from unittest import TestCase
 from fsocks.fuzzing.base import FuzzError
 from fsocks.fuzzing.symmetric import XOR, RailFence
 from fsocks.fuzzing.codec import Base16, Base32, Base64, Base85,\
-    AtBash
+    AtBash, XXencode, UUencode
 
 
 class TestCipher(TestCase):
@@ -103,3 +103,12 @@ class TestAtBash(TestCipher):
 
     def test_bench(self):
         self._do_test_bench(AtBash())
+
+
+class TestXXEncode(TestCipher):
+    def test_basic(self):
+        self._do_test_cipher(XXencode())
+        self._do_test_cipher(UUencode())
+    def test_bench(self):
+        self._do_test_bench(XXencode())
+        self._do_test_bench(UUencode())

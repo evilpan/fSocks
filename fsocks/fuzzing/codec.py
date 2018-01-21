@@ -29,6 +29,8 @@ class CodecFuzz(BaseFuzz):
 
 
 class Plain(CodecFuzz):
+    enabled = False
+
     def encode(self, data):
         return data
 
@@ -78,15 +80,18 @@ def bit2byte(bits):
 
 class XXencode(CodecFuzz):
     """XXencode"""
+    enabled = False
     table = bytearray(b'+-0123456789'
                       b'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                       b'abcdefghijklmnopqrstuvwxyz')
 
+    # FIXME: kinda slow
     def encode(self, data):
         data = bytearray(data)
         result = bytearray()
         remains = len(data) % 3
         paddings = 0 if not remains else 3 - remains
+        result.append(paddings)
         for _ in range(paddings):
             data.append(0)
         for i in range(0, len(data), 3):
@@ -100,7 +105,8 @@ class XXencode(CodecFuzz):
         return bytes(result)
 
     def decode(self, data):
-        data = bytearray(data)
+        paddings = data[0]
+        data = bytearray(data[1:])
         result = bytearray()
         bits = ''
         for b in data:
@@ -109,8 +115,10 @@ class XXencode(CodecFuzz):
         assert len(bits) % 8 == 0
         for i in range(0, len(bits), 8):
             result.append(bit2byte(bits[i: i + 8]))
-        # how to correctly strip the padded zeros?
-        return bytes(result)
+        if paddings != 0:
+            return bytes(result[:-paddings])
+        else:
+            return bytes(result)
 
 
 class UUencode(XXencode):
