@@ -61,6 +61,7 @@ class TunnelClient:
         if user.established:
             self.tunnel_writer.write(
                 protocol.Close(user.user_id).to_packet())
+        user.writer.transport.abort()
 
     def _delete_user(self, user):
         user.close()
@@ -166,15 +167,14 @@ class TunnelClient:
         # < HandShake
         shake_response = await protocol.async_read_packet(reader)
         logger.debug(shake_response)
+        logger.info('negotiate done, using cipher: {}'.format(shake_response.cipher))
         self.cipher = shake_response.cipher
-        logger.info('negotiate done, using cipher: {}'.format(self.cipher))
         self.tunnel_reader = reader
         self.tunnel_writer = writer
         self.tunnel_task = asyncio.Task(
             self._handle_tunnel(reader, writer))
 
         def tunnel_done(task):
-            # clean up here or there?
             logger.warn('tunnel is closed')
             sys.exit(2)
         self.tunnel_task.add_done_callback(tunnel_done)

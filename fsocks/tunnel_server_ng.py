@@ -47,8 +47,8 @@ class Channel:
             logger.info('connecting {}:{} ({})'.format(host, port, concurrent))
             fut = loop.create_connection(Client, host, port)
             transport, client = await asyncio.wait_for(fut, timeout=config.timeout)
-        except asyncio.TimeoutError:
-            logger.warn('timeout {}:{}'.format(host, port))
+        except (asyncio.TimeoutError, ConnectionRefusedError) as e:
+            logger.warn('{}'.format(e))
             socks_err = socks.Message(socks.VER.SOCKS5,
                                       socks.REP.NETWORK_UNREACHABLE,
                                       socks.ATYPE.IPV4, bind_addr)
