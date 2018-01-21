@@ -21,6 +21,7 @@ def safe_process(func):
         return result
     return func_wrapper
 
+
 def get_message(data):
     mtype = data[2]
     mtype = MTYPE(mtype)
@@ -39,6 +40,7 @@ def get_message(data):
         return Close.from_stream(s)
     else:
         return None
+
 
 @safe_process
 def read_packet(stream, cipher=None):
@@ -60,8 +62,9 @@ async def async_read_packet(reader, cipher=None):
         edata = cipher.decrypt(edata)
     return get_message(edata)
 
+
 @safe_process
-def form_packet(data, etype=0):
+def form_packet(data, etype):
     return struct.pack('!HI', etype, len(data)) \
         + data
 
@@ -104,8 +107,16 @@ class Message:
         return struct.pack('!HBI', self.magic,
                            self.mtype.value, self.nonce)
 
-    def to_packet(self):
-        return form_packet(self.to_bytes(), etype=0)
+    def to_packet(self, cipher):
+        # etype 0 -> before negotiate
+        # etype 1 -> after negotiate
+        if self.mtype is MTYPE.HELLO or \
+                self.mtype is MTYPE.HANDSHAKE:
+            etype = 0
+        else:
+            etype = 1
+        return form_packet(cipher.encrypt(
+            self.to_bytes()), etype)
 
 
 class Hello(Message):
@@ -140,7 +151,7 @@ class HandShake(Message):
     def __init__(self, fuzz=None, timestamp=None, **kwargs):
         self.timestamp = timestamp or int(time())
         if fuzz is None:
-            self.fuzz = fuzzing.FuzzChain(fuzzing.fuzz_list())
+            self.fuzz = fuzzing.FuzzChain(fuzzing.available_fuzz())
         elif isinstance(fuzz, fuzzing.FuzzChain):
             self.fuzz = fuzz
         else:
@@ -169,7 +180,6 @@ class HandShake(Message):
             else:
                 key, = struct.unpack('!{}s'.format(key_len), s.read(key_len))
                 fuzz_list.append(fuzz_cls(key))
-        logger.debug('Received {} fuzzs'.format(len(fuzz_list)))
         if len(fuzz_list) == 0:
             raise ProtocolError('No fuzz available')
         return cls(fuzzing.FuzzChain(fuzz_list), timestamp, nonce=nonce)

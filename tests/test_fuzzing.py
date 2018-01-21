@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import time
 import struct
-import functools
 from unittest import TestCase
 from fsocks.fuzzing.base import FuzzError
 from fsocks.fuzzing.symmetric import XOR, RailFence

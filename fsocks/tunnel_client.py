@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import sys
 import asyncio
-from fsocks import logger, config, fuzzing, protocol, socks
+from fsocks import logger, config, protocol, socks
+from fsocks import fuzzing, cryption
 
 
 class User:
@@ -22,9 +23,9 @@ class User:
 
     def close(self):
         self.remote_id = None
-        self.writer.close()
-        self.task.cancel()
-        self.task = None
+        self.writer.transport.abort()
+        # self.task.cancel()
+        # self.task = None
 
     def __str__(self):
         return 'User(%d)' % self.user_id
@@ -43,7 +44,7 @@ class TunnelClient:
         self.tunnel_task = None
         self.tunnel_reader = None
         self.tunnel_writer = None
-        self.cipher = None
+        self.cipher = cryption.AES256CBC(config.password)
         self.fuzz = None
 
     def _accept_user(self, user_reader, user_writer):
@@ -61,7 +62,7 @@ class TunnelClient:
         logger.debug('{} closed'.format(user))
         if user.established:
             self.tunnel_writer.write(
-                protocol.Close(user.user_id).to_packet())
+                protocol.Close(user.user_id).to_packet(self.fuzz))
         user.writer.transport.abort()
 
     def _delete_user(self, user):
@@ -70,6 +71,13 @@ class TunnelClient:
 
     def _get_user(self, user_id):
         return self.users.get(user_id, None)
+
+    async def safe_write(self, writer, data):
+        writer.write(data)
+        try:
+            await writer.drain()
+        except ConnectionResetError as e:
+            logger.warn('write error: {}'.format(e))
 
     async def _pipe_user(self, user):
         # may start before connection to remote is established
@@ -85,7 +93,8 @@ class TunnelClient:
             assert user.established
             packet = protocol.Relaying(
                 user.user_id, user.remote_id, data)
-            self.tunnel_writer.write(packet.to_packet())
+            await self.safe_write(self.tunnel_writer,
+                                  packet.to_packet(self.fuzz))
 
     async def _handle_user(self, user):
         # ignore client SOCKS5 greeting
@@ -93,28 +102,31 @@ class TunnelClient:
         logger.debug('ignore SOCK5 greeting ({} bytes)'.format(len(data)))
         # response greeting without auth
         server_greeting = socks.ServerGreeting()
-        user.writer.write(server_greeting.to_bytes())
+        await self.safe_write(user.writer,
+                              server_greeting.to_bytes())
         # recv CMD
         msg = await socks.Message.from_reader(user.reader)
         if msg.code is not socks.CMD.CONNECT:
             logger.warn('unhandle msg {}'.format(msg))
-            user.writer.write(socks.Message(
+            rep = socks.Message(
                 socks.VER.SOCKS5,
                 socks.REP.COMMAND_NOT_SUPPORTED,
                 socks.ATYPE.IPV4,
-                ('0', 0)).to_bytes())
+                ('0', 0))
+            await self.safe_write(user.writer, rep.to_bytes())
             return
         logger.info('connecting {}:{}'.format(msg.addr[0], msg.addr[1]))
         # send to tunnel
         connect_reqeust = protocol.Request(
             user.user_id, 0, msg)
-        self.tunnel_writer.write(connect_reqeust.to_packet())
+        await self.safe_write(self.tunnel_writer,
+                              connect_reqeust.to_packet(self.fuzz))
         await self._pipe_user(user)
 
     async def _handle_tunnel(self, reader, writer):
         logger.debug('_handle_tunnel started')
         while True:
-            packet = await protocol.async_read_packet(reader)
+            packet = await protocol.async_read_packet(reader, self.fuzz)
             if packet.mtype is protocol.MTYPE.REPLY:
                 # received a SOCKS reply, update mapping
                 # and forward to corresponding user
@@ -124,7 +136,8 @@ class TunnelClient:
                 if user is None:
                     # Tell server to close
                     continue
-                user.writer.write(packet.msg.to_bytes())
+                await self.safe_write(user.writer,
+                                      packet.msg.to_bytes())
                 user.remote_id = remote_id
             elif packet.mtype is protocol.MTYPE.RELAYING:
                 # received raw data, forwarding
@@ -134,9 +147,9 @@ class TunnelClient:
                 if user is None:
                     # Tell server to close
                     continue
-                user.writer.write(packet.payload)
+                await self.safe_write(user.writer, packet.payload)
             elif packet.mtype is protocol.MTYPE.CLOSE:
-                # remote closed, so we close related user
+                # close user tansport
                 user_id = packet.src
                 logger.debug(
                     'remote disconnected, close user {}'.format(user_id))
@@ -155,22 +168,21 @@ class TunnelClient:
         reader, writer = await asyncio.open_connection(host, port)
         # > Hello
         hello_request = protocol.Hello()
-        writer.write(hello_request.to_packet())
+        await self.safe_write(writer, hello_request.to_packet(self.cipher))
         # < Hello
-        hello_response = await protocol.async_read_packet(reader)
+        hello_response = await protocol.async_read_packet(reader, self.cipher)
         logger.debug(hello_response)
         # > HandShake
         shake_request = protocol.HandShake(timestamp=hello_response.timestamp)
-        writer.write(shake_request.to_packet())
+        await self.safe_write(writer, shake_request.to_packet(self.cipher))
         # < HandShake
-        shake_response = await protocol.async_read_packet(reader)
+        shake_response = await protocol.async_read_packet(reader, self.cipher)
         logger.debug(shake_response)
         logger.info('negotiate done, using fuzz: {}'.format(shake_response.fuzz))
         self.fuzz = shake_response.fuzz
         self.tunnel_reader = reader
         self.tunnel_writer = writer
-        self.tunnel_task = asyncio.Task(
-            self._handle_tunnel(reader, writer))
+        self.tunnel_task = asyncio.Task(self._handle_tunnel(reader, writer))
 
         def tunnel_done(task):
             logger.warn('tunnel is closed')

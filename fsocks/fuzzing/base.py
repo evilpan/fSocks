@@ -43,26 +43,26 @@ class BaseFuzz:
 
 class FuzzChain:
 
-    def __init__(self, cipher_list):
-        self.cipher_list = cipher_list
+    def __init__(self, fuzz_list):
+        self.fuzz_list = fuzz_list
 
     def encrypt(self, data):
         result = data
-        for cipher in self.cipher_list:
-            result = cipher.encrypt(result)
+        for fuzz in self.fuzz_list:
+            result = fuzz.encrypt(result)
         return result
 
     def decrypt(self, data):
         result = data
-        for cipher in reversed(self.cipher_list):
-            result = cipher.decrypt(result)
+        for fuzz in reversed(self.fuzz_list):
+            result = fuzz.decrypt(result)
         return result
 
     def to_bytes(self):
         result = b''
-        for cipher in self.cipher_list:
-            result += cipher.to_bytes()
+        for fuzz in self.fuzz_list:
+            result += fuzz.to_bytes()
         return result
 
     def __str__(self):
-        return '->'.join([c._name for c in self.cipher_list])
+        return '->'.join([c._name for c in self.fuzz_list])

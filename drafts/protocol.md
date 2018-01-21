@@ -54,9 +54,9 @@ Basicly, all messages format are as follow:
 - ENC.DATA: encrypted/encoded data content, vary from MTYPE
 
 before connection is established, `ENC.DATA` is encrypted
-using pre shared password and method, such as HELLO, HANDSHAKE.
+using pre shared password and method, such as HELLO, HANDSHAKE, ENC.TYPE = 0x00
 after connection is established, `ENC.DATA` is encoded
-using negotiated cipher(s), such as REQUEST, REPLY and RELAYING.
+using negotiated fuzzing method, such as REQUEST, REPLY and RELAYING, ENC.TYPE = 0x01
 
 choices of MTYPE:
 

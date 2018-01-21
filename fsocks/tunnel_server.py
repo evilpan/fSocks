@@ -2,8 +2,10 @@
 import io
 import struct
 import asyncio
+import socket
 from enum import Enum, unique
-from fsocks import logger, config, fuzzing, protocol, socks
+from fsocks import logger, config, protocol, socks
+from fsocks import fuzzing, cryption
 
 
 concurrent = 0  # for debug purpose
@@ -31,9 +33,10 @@ class Client(asyncio.Protocol):
 class Channel:
     """ A channel is a peer to peer association """
     IDLE, CMD, DATA = 0, 1, 2
-    def __init__(self, transport, user, remote=0):
+    def __init__(self, transport, fuzz, user, remote=0):
         self.tunnel_transport = transport
         self.remote_transport = None
+        self.fuzz = fuzz
         self.user = user
         self.remote = remote
         self.state = self.IDLE
@@ -46,13 +49,15 @@ class Channel:
             logger.info('connecting {}:{}'.format(host, port))
             fut = loop.create_connection(Client, host, port)
             transport, client = await asyncio.wait_for(fut, timeout=config.timeout)
-        except (asyncio.TimeoutError, ConnectionRefusedError) as e:
-            logger.warn('{}'.format(e))
+        except (asyncio.TimeoutError,
+                ConnectionRefusedError,
+                socket.gaierror) as e:
+            logger.warn('connect {}'.format(e))
             socks_err = socks.Message(socks.VER.SOCKS5,
                                       socks.REP.NETWORK_UNREACHABLE,
                                       socks.ATYPE.IPV4, bind_addr)
             rep = protocol.Reply(self.remote, self.user, socks_err)
-            self.tunnel_transport.write(rep.to_packet())
+            self.tunnel_transport.write(rep.to_packet(self.fuzz))
             self.state = self.IDLE
             return
         client.channel = self
@@ -62,7 +67,7 @@ class Channel:
         socks_ok = socks.Message(socks.VER.SOCKS5, socks.REP.SUCCEEDED,
                                  socks.ATYPE.IPV4, bind_addr)
         rep = protocol.Reply(self.remote, self.user, socks_ok)
-        self.tunnel_transport.write(rep.to_packet())
+        self.tunnel_transport.write(rep.to_packet(self.fuzz))
         self.state = self.DATA
         logger.debug('channel {} opened'.format(self))
 
@@ -73,7 +78,7 @@ class Channel:
         if upstream:
             return self.remote_transport.write(payload)
         packet = protocol.Relaying(self.remote, self.user, payload)
-        return self.tunnel_transport.write(packet.to_packet())
+        return self.tunnel_transport.write(packet.to_packet(self.fuzz))
 
     def close(self):
         if self.state == self.IDLE:
@@ -81,31 +86,27 @@ class Channel:
         self.state = self.IDLE
         if self.remote_transport is not None:
             self.remote_transport.abort()
+        packet = protocol.Close(self.user)
+        self.tunnel_transport.write(packet.to_packet(self.fuzz))
         logger.debug('channel {} closed'.format(self))
 
     def __str__(self):
         return '{}->{}'.format(self.user, self.remote)
 
 class Tunnel:
-    def __init__(self, transport):
+    def __init__(self, transport, fuzz):
         self.transport = transport
+        self.fuzz = fuzz
         self.channels = {}  # user_id -> Channel
-        self.cipher = None
-        self.fuzz = None
 
     def handle_request(self, packet):
-        if packet.mtype is protocol.MTYPE.HANDSHAKE:
-            fuzz = fuzzing.FuzzChain([fuzzing.XOR(0x91), fuzzing.Base64()])
-            response = protocol.HandShake(fuzz=fuzz)
-            self.transport.write(response.to_packet())
-            self.fuzz = fuzz
-        elif packet.mtype is protocol.MTYPE.REQUEST:
+        if packet.mtype is protocol.MTYPE.REQUEST:
             msg = packet.msg
             if msg.code is not socks.CMD.CONNECT:
                 logger.warn('unsupported msg: {}'.format(msg))
                 return
             user = packet.src
-            chan = Channel(self.transport, user)
+            chan = Channel(self.transport, self.fuzz, user)
             asyncio.ensure_future(chan.connect(msg.addr[0], msg.addr[1]))
             self.channels[user] = chan
         elif packet.mtype is protocol.MTYPE.RELAYING:
@@ -123,16 +124,18 @@ class Tunnel:
             self.channels[user].close()
 
 class TunnelServer(asyncio.Protocol):
-    NEGOTIATING, OPEN, CLOSING = 0, 1, 2
+    GREETING, NEGOTIATING, OPEN, CLOSING = 0, 1, 2, 3
 
     def connection_made(self, transport):
         logger.debug('client {}:{} connected'.format(
             *transport.get_extra_info('peername')))
         self.transport = transport
         self.tunnel = None
-        self.state = self.NEGOTIATING
+        self.state = self.GREETING
         self.buf = bytearray()
         self.remains = 0
+        self.cipher = cryption.AES256CBC(config.password)
+        self.fuzz = None
 
     def connection_lost(self, exc):
         self.state = self.CLOSING
@@ -170,23 +173,43 @@ class TunnelServer(asyncio.Protocol):
         elif self.remains > 0:
             self.buf.extend(data)
         elif self.remains < 0:
-            # more than one packet recevied
+            logger.debug('more than one packet recevied at once')
             self.packet_received(data[:6+need_len])
             remaining = data[6+need_len:]
             self.remains = 0
             self.data_received(remaining)
 
     def packet_received(self, packet_data):
-        packet = protocol.read_packet(io.BytesIO(packet_data))
-        if self.state == self.NEGOTIATING:
+        if self.state == self.GREETING:
+            packet = protocol.read_packet(
+                io.BytesIO(packet_data), self.cipher)
             if packet.mtype is not protocol.MTYPE.HELLO:
-                self.state = self.CLOSING
                 self.transport.abort()
+                self.state = self.CLOSING
+                return
             self.transport.write(
-                protocol.Hello().to_packet())
-            self.tunnel = Tunnel(self.transport)
+                protocol.Hello().to_packet(self.cipher))
+            self.tunnel = Tunnel(self.transport, self.fuzz)
+            self.state = self.NEGOTIATING
+        elif self.state == self.NEGOTIATING:
+            packet = protocol.read_packet(
+                io.BytesIO(packet_data), self.cipher)
+            if packet.mtype is not protocol.MTYPE.HANDSHAKE:
+                self.transport.abort()
+                self.state = self.CLOSING
+            nfuzzs = len(packet.fuzz.fuzz_list)
+            logger.info('client HandShake with {} fuzzing methods:\n{}'.format(
+                nfuzzs, packet.fuzz))
+            fuzz = fuzzing.FuzzChain(packet.fuzz.fuzz_list[:2])
+            logger.info('choose {}'.format(fuzz))
+            response = protocol.HandShake(fuzz=fuzz)
+            self.transport.write(response.to_packet(self.cipher))
+            self.fuzz = fuzz
+            self.tunnel.fuzz = fuzz
             self.state = self.OPEN
         elif self.state == self.OPEN:
+            packet = protocol.read_packet(
+                io.BytesIO(packet_data), self.fuzz)
             self.tunnel.handle_request(packet)
         else:
             logger.warn('tunel is closing')

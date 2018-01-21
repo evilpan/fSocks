@@ -6,7 +6,7 @@ from .codec import Plain, Base16, Base32, Base64,\
 from .symmetric import XOR, RailFence
 
 
-def fuzz_list():
+def available_fuzz():
     flist = []
     this_module = sys.modules[__name__]
     for name, obj in inspect.getmembers(this_module):
