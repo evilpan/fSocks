@@ -178,7 +178,8 @@ class TunnelClient:
         # < HandShake
         shake_response = await protocol.async_read_packet(reader, self.cipher)
         logger.debug(shake_response)
-        logger.info('negotiate done, using fuzz: {}'.format(shake_response.fuzz))
+        logger.info('negotiate done, using fuzz: {}'.format(
+            shake_response.fuzz))
         self.fuzz = shake_response.fuzz
         self.tunnel_reader = reader
         self.tunnel_writer = writer

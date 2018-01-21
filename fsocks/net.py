@@ -64,7 +64,7 @@ class SockStream:
         read = b''
         left = nbytes
         while left > 0:
-            data = await self.loop.sock_recv(sock, left)
+            data = await self.loop.sock_recv(self.sock, left)
             n = len(data)
             if n == 0:
                 raise NetworkError('connection closed')

@@ -10,7 +10,7 @@ from fsocks import fuzzing, cryption
 
 concurrent = 0  # for debug purpose
 # Each TunnelServer can accept many tunnel(connection)s,
-# And every tunnel(connection) is multiplexed for handling 
+# And every tunnel(connection) is multiplexed for handling
 # many SOCKS5 request. Thus, every tunnel is keeping track of
 # the peer to peer states.
 
@@ -21,8 +21,10 @@ class Client(asyncio.Protocol):
         self.channel = None
         global concurrent
         concurrent += 1
+
     def data_received(self, data):
         self.channel.forward(data, False)
+
     def connection_lost(self, exc):
         global concurrent
         concurrent -= 1
@@ -30,9 +32,11 @@ class Client(asyncio.Protocol):
             logger.warn('remote closed: {}'.format(exc))
         self.channel.close()
 
+
 class Channel:
     """ A channel is a peer to peer association """
     IDLE, CMD, DATA = 0, 1, 2
+
     def __init__(self, transport, fuzz, user, remote=0):
         self.tunnel_transport = transport
         self.remote_transport = None
@@ -48,7 +52,8 @@ class Channel:
         try:
             logger.info('connecting {}:{}'.format(host, port))
             fut = loop.create_connection(Client, host, port)
-            transport, client = await asyncio.wait_for(fut, timeout=config.timeout)
+            transport, client = await \
+                asyncio.wait_for(fut, timeout=config.timeout)
         except (asyncio.TimeoutError,
                 ConnectionRefusedError,
                 socket.gaierror) as e:
@@ -93,6 +98,7 @@ class Channel:
     def __str__(self):
         return '{}->{}'.format(self.user, self.remote)
 
+
 class Tunnel:
     def __init__(self, transport, fuzz):
         self.transport = transport
@@ -122,6 +128,7 @@ class Tunnel:
         logger.info('closing channels in tunnel')
         for user in self.channels:
             self.channels[user].close()
+
 
 class TunnelServer(asyncio.Protocol):
     GREETING, NEGOTIATING, OPEN, CLOSING = 0, 1, 2, 3
@@ -174,8 +181,8 @@ class TunnelServer(asyncio.Protocol):
             self.buf.extend(data)
         elif self.remains < 0:
             logger.debug('more than one packet recevied at once')
-            self.packet_received(data[:6+need_len])
-            remaining = data[6+need_len:]
+            self.packet_received(data[:6 + need_len])
+            remaining = data[6 + need_len:]
             self.remains = 0
             self.data_received(remaining)
 

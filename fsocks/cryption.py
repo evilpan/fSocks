@@ -4,6 +4,7 @@ from Crypto.Hash import SHA256
 from Crypto import Random
 from fsocks import config, logger
 
+
 class BaseCryption:
     def __init__(self, password):
         self.password = password.encode()
@@ -19,22 +20,32 @@ class AES256CBC(BaseCryption):
 
     def __init__(self, password):
         super().__init__(password)
-        self.key = SHA256.new(self.password).digest()  # use SHA-256 over our key to get a proper-sized AES key
+        # use SHA-256 over our key to get a proper-sized AES key
+        self.key = SHA256.new(self.password).digest()
         self.mode = AES.MODE_CBC
 
     def encrypt(self, source: bytes):
-        IV = Random.new().read(AES.block_size)  # generate IV
+        # generate IV
+        IV = Random.new().read(AES.block_size)
         encryptor = AES.new(self.key, self.mode, IV)
-        padding = AES.block_size - len(source) % AES.block_size  # calculate needed padding
-        source += bytes([padding]) * padding  # Python 2.x: source += chr(padding) * padding
-        data = IV + encryptor.encrypt(source)  # store the IV at the beginning and encrypt
+        # calculate needed padding
+        padding = AES.block_size - len(source) % AES.block_size
+        # Python 2.x: source += chr(padding) * padding
+        source += bytes([padding]) * padding
+        # store the IV at the beginning and encrypt
+        data = IV + encryptor.encrypt(source)
         return data
 
     def decrypt(self, source: bytes):
-        IV = source[:AES.block_size]  # extract the IV from the beginning
+        # extract the IV from the beginning
+        IV = source[:AES.block_size]
         decryptor = AES.new(self.key, self.mode, IV)
-        data = decryptor.decrypt(source[AES.block_size:])  # decrypt
-        padding = data[-1]  # pick the padding value from the end; Python 2.x: ord(data[-1])
-        if data[-padding:] != bytes([padding]) * padding:  # Python 2.x: chr(padding) * padding
+        # decrypt
+        data = decryptor.decrypt(source[AES.block_size:])
+        # pick the padding value from the end; Python 2.x: ord(data[-1])
+        padding = data[-1]
+        # Python 2.x: chr(padding) * padding
+        if data[-padding:] != bytes([padding]) * padding:
             raise ValueError("Invalid padding...")
-        return data[:-padding]  # remove the padding
+        # remove the padding
+        return data[:-padding]

@@ -124,7 +124,6 @@ class Message:
         port, = struct.unpack('!H', data)
         return cls(ver, code, atype, (host, port))
 
-
     def to_bytes(self):
         data = struct.pack('!4B', self.ver.value, self.code.value,
                            self.RSV, self.atype.value)

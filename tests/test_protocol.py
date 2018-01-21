@@ -56,15 +56,15 @@ class TestHandShake(TestCase):
                           io.BytesIO(msg.to_bytes()))
         self.assertRaises(ProtocolError, HandShake.from_stream,
                           io.BytesIO(b'123456'))
-        self.assertRaises(ProtocolError, HandShake, cipher=[])
-        self.assertRaises(ProtocolError, HandShake, cipher=fuzzing.XOR(0x11))
-        msg = HandShake(cipher=fuzzing.CipherChain([]))
+        self.assertRaises(ProtocolError, HandShake, [])
+        self.assertRaises(ProtocolError, HandShake, fuzzing.XOR())
+        msg = HandShake(fuzzing.FuzzChain([]))
         b = msg.to_bytes()
         self.assertRaises(ProtocolError, HandShake.from_stream, io.BytesIO(b))
 
     def test_custom(self):
-        cipher=fuzzing.CipherChain([fuzzing.XOR(0x11)])
-        msg = HandShake(cipher=cipher)
+        fuzzer = fuzzing.FuzzChain([fuzzing.XOR()])
+        msg = HandShake(fuzz=fuzzer)
         msg1 = HandShake.from_stream(io.BytesIO(msg.to_bytes()))
         self.assertEqual(msg.to_bytes(), msg1.to_bytes())
 

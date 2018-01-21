@@ -51,6 +51,7 @@ def read_packet(stream, cipher=None):
         edata = cipher.decrypt(edata)
     return get_message(edata)
 
+
 @safe_process
 async def async_read_packet(reader, cipher=None):
     data = await reader.readexactly(2)
@@ -67,6 +68,7 @@ async def async_read_packet(reader, cipher=None):
 def form_packet(data, etype):
     return struct.pack('!HI', etype, len(data)) \
         + data
+
 
 @unique
 class ENCTYPE(Enum):
@@ -94,7 +96,7 @@ class Message:
     @staticmethod
     def read_common(stream):
         magic, mtype, nonce = struct.unpack(
-            '!HBI', stream.read(2+1+4))
+            '!HBI', stream.read(2 + 1 + 4))
         if magic != Message.magic:
             raise ProtocolError('Invalid magic')
         try:
@@ -188,7 +190,7 @@ class HandShake(Message):
     def to_bytes(self):
         result = self.common_bytes() + \
             struct.pack('!Q', self.timestamp)
-        result += self.fuzz.to_bytes() + struct.pack('!B', 0) # end-of-fuzzs
+        result += self.fuzz.to_bytes() + struct.pack('!B', 0)  # end-of-fuzzs
         return result
 
     def __str__(self):
@@ -237,6 +239,7 @@ class Reply(_SocksWrapper):
 
 class Relaying(Message):
     mtype = MTYPE.RELAYING
+
     def __init__(self, src, dst, payload, **kwargs):
         self.src = src
         self.dst = dst
@@ -250,7 +253,7 @@ class Relaying(Message):
         if mtype is not cls.mtype:
             raise ProtocolError('Not a Relay message')
         src, dst = struct.unpack('!II', s.read(8))
-        payload = s.read() # all remaining
+        payload = s.read()  # all remaining
         return cls(src, dst, payload, nonce=nonce)
 
     def to_bytes(self):
@@ -261,6 +264,7 @@ class Relaying(Message):
 
 class Close(Message):
     mtype = MTYPE.CLOSE
+
     def __init__(self, src, **kwargs):
         self.src = src
         super().__init__(**kwargs)
