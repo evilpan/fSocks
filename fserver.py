@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import re
 import sys
-from fsocks import server, tunnel_server
+from fsocks import tunnel_server
 
 
 if __name__ == '__main__':

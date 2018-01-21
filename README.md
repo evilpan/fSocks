@@ -21,7 +21,9 @@ python3 fserver.py -c config.json
 
 # TEST
 
+```
 python3 -m unittest discover -s tests
+```
 
 # drafts
 
