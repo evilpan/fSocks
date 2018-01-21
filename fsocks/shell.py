@@ -16,11 +16,12 @@ class Config:
         self.raw = {
             "client_host": "127.0.0.1",
             "client_port": 1080,
-            "server_host": "127.0.0.1",
+            "server_host": "0.0.0.0",
             "server_port": 1081,
             "method": "sha256",
             "password": "my_password",
-            "timeout": 6.6
+            "timeout": 6.6,
+            "loglevel": "DEBUG"
         }
 
     @property
@@ -40,13 +41,13 @@ class Config:
                             help='path to config file')
         check_python()
         args = parser.parse_args()
-        logger.info('Loading config {}'.format(args.config))
+        print('Loading config {}'.format(args.config))
         with open(args.config) as f:
             _cfg = json.load(f)
         self.raw.update(_cfg)
-
         for key in self.raw:
             setattr(self, key, self.raw[key])
+        logger.setLevel(self.loglevel)
 
 
 config = Config()

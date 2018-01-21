@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import time
 import struct
+import functools
 from unittest import TestCase
-from fsocks.fuzzing.integer_key import XOR, RailFence
+from fsocks.fuzzing.base import FuzzError
+from fsocks.fuzzing.symmetric import XOR, RailFence
 from fsocks.fuzzing.codec import Base16, Base32, Base64, Base85,\
     AtBash
 
@@ -40,41 +42,47 @@ class TestCipher(TestCase):
 
 
 class TestXOR(TestCipher):
+    def get_cipher(self, ikey):
+        return XOR(struct.pack('!B', ikey))
+
     def test_basic(self):
-        for i in 0x26, 0x7f, 0x00, -1, 777:
-            cipher = XOR(i)
+        for i in 0x26, 0x7f, 0x00:
+            cipher = self.get_cipher(i)
             self._do_test_cipher(cipher)
 
     def test_corner(self):
-        e1, e2 = XOR(-1), XOR(999)
-        data = b'test'
-        self.assertEqual(e1.encrypt(data), e2.encrypt(data))
-        self.assertRaises(ValueError, XOR, [])
+        self.assertRaises(FuzzError, XOR, b'\x00\x01')
+        self.assertRaises(FuzzError, XOR, b'\xff\xff')
+        self.assertRaises(TypeError, XOR, [])
 
     def test_bench(self):
-        cipher = XOR(2)
+        cipher = self.get_cipher(2)
         self._do_test_bench(cipher)
 
 
 class TestRailFence(TestCipher):
+    def get_cipher(self, ikey):
+        return RailFence(struct.pack('!H', ikey))
+
     def test_basic(self):
-        ciphers = RailFence(1), RailFence(2), RailFence(3),\
-            RailFence(50), RailFence(0), RailFence(-1)
+        ciphers = self.get_cipher(1), self.get_cipher(2), self.get_cipher(3),\
+            self.get_cipher(50), self.get_cipher(0)
         for c in ciphers:
             self._do_test_cipher(c)
 
     def test_corner(self):
+        self.assertRaises(TypeError, RailFence, [])
+        self.assertRaises(TypeError, RailFence, 'string')
         text = b'hello'
-        e = RailFence(0)
-        for i in range(-10, 2):
-            e.numrails = i
+        for i in range(0, 2):
+            e = self.get_cipher(i)
             self.assertEqual(text, e.encrypt(text))
         for i in range(len(text), len(text) + 5):
-            e.numrails = i
+            e = self.get_cipher(i)
             self.assertEqual(text, e.encrypt(text))
 
     def test_bench(self):
-        cipher = RailFence(2)
+        cipher = self.get_cipher(2)
         self._do_test_bench(cipher)
 
 

@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 import math
+from random import randint
 import struct
-from .base import BaseCipher
+from .base import BaseFuzz, FuzzError
 
 __all__ = ['XOR', 'RailFence']
 
 
-class IntKeyCipher(BaseCipher):
-    """ class that accepts one int value as initial key """
-    def __init__(self, key=0):
-        if isinstance(key, int):
-            self.ikey = key
-            self.key = struct.pack('!I', abs(key))
-        elif isinstance(key, bytes):
-            self.key = key
-            self.ikey, = struct.unpack('!I', key)
+class XOR(BaseFuzz):
+
+    def __init__(self, key: bytes=None):
+        if key is None:
+            self.ikey = randint(0, 0xFF)
+            self.key = struct.pack('!B', self.ikey)
         else:
-            raise ValueError('error type {} to initialize cipher'.format(
-                self.__class__))
-
-
-class XOR(IntKeyCipher):
+            self.key = key
+            try:
+                self.ikey, = struct.unpack('!B', self.key)
+            except struct.error:
+                raise FuzzError
 
     def encrypt(self, data):
         return self.xor_codec(data)
@@ -30,18 +28,26 @@ class XOR(IntKeyCipher):
 
     def xor_codec(self, data):
         result = bytearray()
-        k = self.ikey if 0 <= self.ikey <= 0xFF else 0x26
         for b in data:
-            result.append(b ^ k)
+            result.append(b ^ self.ikey)
         result = bytes(result)
         assert len(data) == len(result)
         return result
 
 
-class RailFence(IntKeyCipher):
+class RailFence(BaseFuzz):
     """ https://en.wikipedia.org/wiki/Rail_fence_cipher
     We don't strip the non-ASCII here
     """
+
+    def __init__(self, key: bytes=None):
+        # ikey = number of rails
+        if key is None:
+            self.ikey = randint(1, 10)
+            self.key = struct.pack('!H', self.ikey)
+        else:
+            self.key = key
+            self.ikey, = struct.unpack('!H', self.key)
 
     def encrypt(self, data):
         if not self.reasonable(data):

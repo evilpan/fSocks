@@ -5,5 +5,6 @@
     "server_port": 1081,
     "method": "AES",
     "password": "my_password",
-    "timeout" : 3.3
+    "timeout" : 3.3,
+    "loglevel": "INFO"
 }

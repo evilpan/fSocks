@@ -44,6 +44,7 @@ class TunnelClient:
         self.tunnel_reader = None
         self.tunnel_writer = None
         self.cipher = None
+        self.fuzz = None
 
     def _accept_user(self, user_reader, user_writer):
         logger.debug('user accepted')
@@ -68,10 +69,7 @@ class TunnelClient:
         del self.users[user.user_id]
 
     def _get_user(self, user_id):
-        if user_id in self.users:
-            user = self.users[user_id]
-            return user
-        return None
+        return self.users.get(user_id, None)
 
     async def _pipe_user(self, user):
         # may start before connection to remote is established
@@ -167,8 +165,8 @@ class TunnelClient:
         # < HandShake
         shake_response = await protocol.async_read_packet(reader)
         logger.debug(shake_response)
-        logger.info('negotiate done, using cipher: {}'.format(shake_response.cipher))
-        self.cipher = shake_response.cipher
+        logger.info('negotiate done, using fuzz: {}'.format(shake_response.fuzz))
+        self.fuzz = shake_response.fuzz
         self.tunnel_reader = reader
         self.tunnel_writer = writer
         self.tunnel_task = asyncio.Task(

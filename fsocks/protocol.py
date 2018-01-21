@@ -41,21 +41,23 @@ def get_message(data):
         return None
 
 @safe_process
-def read_packet(stream):
+def read_packet(stream, cipher=None):
     etype, = struct.unpack('!H', stream.read(2))
     elen, = struct.unpack('!I', stream.read(4))
     edata = stream.read(elen)
-    # TODO: decrypt edata
+    if cipher is not None:
+        edata = cipher.decrypt(edata)
     return get_message(edata)
 
 @safe_process
-async def async_read_packet(reader):
+async def async_read_packet(reader, cipher=None):
     data = await reader.readexactly(2)
     etype, = struct.unpack('!H', data)
     data = await reader.readexactly(4)
     elen, = struct.unpack('!I', data)
     edata = await reader.readexactly(elen)
-    # TODO: decrypt data
+    if cipher is not None:
+        edata = cipher.decrypt(edata)
     return get_message(edata)
 
 @safe_process
@@ -135,14 +137,14 @@ class Hello(Message):
 class HandShake(Message):
     mtype = MTYPE.HANDSHAKE
 
-    def __init__(self, cipher=None, timestamp=None, **kwargs):
+    def __init__(self, fuzz=None, timestamp=None, **kwargs):
         self.timestamp = timestamp or int(time())
-        if cipher is None:
-            self.cipher = fuzzing.CipherChain(fuzzing.cipher_list())
-        elif isinstance(cipher, fuzzing.CipherChain):
-            self.cipher = cipher
+        if fuzz is None:
+            self.fuzz = fuzzing.FuzzChain(fuzzing.fuzz_list())
+        elif isinstance(fuzz, fuzzing.FuzzChain):
+            self.fuzz = fuzz
         else:
-            raise ProtocolError('Cipher must be wrapped in chain')
+            raise ProtocolError('Fuzz must be wrapped in chain')
         super().__init__(**kwargs)
 
     @classmethod
@@ -152,35 +154,35 @@ class HandShake(Message):
         timestamp, = struct.unpack('!Q', s.read(8))
         if mtype is not MTYPE.HANDSHAKE:
             raise ProtocolError('Not a HandShake message')
-        cipher_list = []
+        fuzz_list = []
         while True:
             name_len, = struct.unpack('!B', s.read(1))
             if name_len == 0:
                 break
             name, key_len = struct.unpack('!{}sB'.format(name_len),
                                           s.read(name_len + 1))
-            cipher_cls = getattr(fuzzing, name.decode(), None)
-            if cipher_cls is None:
-                raise ProtocolError('No cipher named {}'.format(name))
+            fuzz_cls = getattr(fuzzing, name.decode(), None)
+            if fuzz_cls is None:
+                raise ProtocolError('No fuzz named {}'.format(name))
             if key_len == 0:
-                cipher_list.append(cipher_cls())
+                fuzz_list.append(fuzz_cls())
             else:
                 key, = struct.unpack('!{}s'.format(key_len), s.read(key_len))
-                cipher_list.append(cipher_cls(key))
-        logger.debug('Received {} ciphers'.format(len(cipher_list)))
-        if len(cipher_list) == 0:
-            raise ProtocolError('No cipher available')
-        return cls(fuzzing.CipherChain(cipher_list), timestamp, nonce=nonce)
+                fuzz_list.append(fuzz_cls(key))
+        logger.debug('Received {} fuzzs'.format(len(fuzz_list)))
+        if len(fuzz_list) == 0:
+            raise ProtocolError('No fuzz available')
+        return cls(fuzzing.FuzzChain(fuzz_list), timestamp, nonce=nonce)
 
     @safe_process
     def to_bytes(self):
         result = self.common_bytes() + \
             struct.pack('!Q', self.timestamp)
-        result += self.cipher.to_bytes() + struct.pack('!B', 0) # end-of-ciphers
+        result += self.fuzz.to_bytes() + struct.pack('!B', 0) # end-of-fuzzs
         return result
 
     def __str__(self):
-        return '<HandShake {}>'.format(self.cipher)
+        return '<HandShake {}>'.format(self.fuzz)
 
 
 class _SocksWrapper(Message):

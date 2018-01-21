@@ -6,7 +6,7 @@ from enum import Enum, unique
 from fsocks import logger, config, fuzzing, protocol, socks
 
 
-concurrent = 0
+concurrent = 0  # for debug purpose
 # Each TunnelServer can accept many tunnel(connection)s,
 # And every tunnel(connection) is multiplexed for handling 
 # many SOCKS5 request. Thus, every tunnel is keeping track of
@@ -43,8 +43,7 @@ class Channel:
         loop = asyncio.get_event_loop()
         bind_addr = ('255.255.255.255', 0)
         try:
-            global concurrent
-            logger.info('connecting {}:{} ({})'.format(host, port, concurrent))
+            logger.info('connecting {}:{}'.format(host, port))
             fut = loop.create_connection(Client, host, port)
             transport, client = await asyncio.wait_for(fut, timeout=config.timeout)
         except (asyncio.TimeoutError, ConnectionRefusedError) as e:
@@ -92,13 +91,14 @@ class Tunnel:
         self.transport = transport
         self.channels = {}  # user_id -> Channel
         self.cipher = None
+        self.fuzz = None
 
     def handle_request(self, packet):
         if packet.mtype is protocol.MTYPE.HANDSHAKE:
-            cipher = fuzzing.CipherChain([fuzzing.XOR(0x91), fuzzing.Base64()])
-            response = protocol.HandShake(cipher=cipher)
+            fuzz = fuzzing.FuzzChain([fuzzing.XOR(0x91), fuzzing.Base64()])
+            response = protocol.HandShake(fuzz=fuzz)
             self.transport.write(response.to_packet())
-            self.cipher = cipher
+            self.fuzz = fuzz
         elif packet.mtype is protocol.MTYPE.REQUEST:
             msg = packet.msg
             if msg.code is not socks.CMD.CONNECT:

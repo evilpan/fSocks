@@ -1,18 +1,18 @@
 import base64
-from .base import BaseCipher
+from .base import BaseFuzz
 
 
 __all__ = ['Plain', 'Base64', 'Base32', 'Base16',
            'Base85', 'XXencode', 'UUencode', 'AtBash']
 
 
-class CodecCipher(BaseCipher):
+class CodecFuzz(BaseFuzz):
     """
-    CodecCipher is not really a cipher
+    CodecFuzz is not really a cipher
     It just do some fuzzing
     """
 
-    def __init__(self):
+    def __init__(self, key: bytes=None):
         self.key = b''
 
     def encode(self, data):
@@ -28,7 +28,7 @@ class CodecCipher(BaseCipher):
         return self.decode(data)
 
 
-class Plain(CodecCipher):
+class Plain(CodecFuzz):
     def encode(self, data):
         return data
 
@@ -36,7 +36,7 @@ class Plain(CodecCipher):
         return data
 
 
-class Base64(CodecCipher):
+class Base64(CodecFuzz):
     def encode(self, data):
         return base64.b64encode(data)
 
@@ -44,7 +44,7 @@ class Base64(CodecCipher):
         return base64.b64decode(data)
 
 
-class Base32(CodecCipher):
+class Base32(CodecFuzz):
     def encode(self, data):
         return base64.b32encode(data)
 
@@ -52,7 +52,7 @@ class Base32(CodecCipher):
         return base64.b32decode(data)
 
 
-class Base16(CodecCipher):
+class Base16(CodecFuzz):
     def encode(self, data):
         return base64.b16encode(data)
 
@@ -60,7 +60,7 @@ class Base16(CodecCipher):
         return base64.b16decode(data)
 
 
-class Base85(CodecCipher):
+class Base85(CodecFuzz):
     def encode(self, data):
         return base64.b85encode(data)
 
@@ -76,7 +76,7 @@ def bit2byte(bits):
     return int(bits, base=2)
 
 
-class XXencode(CodecCipher):
+class XXencode(CodecFuzz):
     """XXencode"""
     table = bytearray(b'+-0123456789'
                       b'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -117,7 +117,7 @@ class UUencode(XXencode):
     table = bytearray(range(32, 96))
 
 
-class AtBash(CodecCipher):
+class AtBash(CodecFuzz):
 
     def encode(self, data):
         result = bytearray()

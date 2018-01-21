@@ -5,46 +5,25 @@ from functools import reduce
 from fsocks.log import logger
 
 
-class CipherError(ValueError):
+class FuzzError(ValueError):
     pass
 
 
-class BaseCipher:
+class BaseFuzz:
+    """ Every fuzz method have following rules:
+    1. accept a bytes string as initial key
+    2. if initial key is None, use a (suitable)random one
+    3. fuzz.decrypt(fuzz.encrypt(data)) === data
+    """
 
-
-    def __init__(self, key: bytes=b''):
-        self.key = key
-
-    def encrypt(self, data):
+    def __init__(self, key: bytes=None):
         pass
 
-    def decrypt(self, data):
+    def encrypt(self, data: bytes):
         pass
 
-    def safe_encrypt(self, data: bytes):
-        """
-        :param data: input plain data
-        :rtype: bytes
-        """
-        try:
-            return self.encrypt(data)
-        except (IndexError, ValueError) as e:
-            raise CipherError('{}: {}'.format(data, e))
-            if logger.level == logging.DEBUG:
-                traceback.print_exc()
-
-    def safe_decrypt(self, data: bytes):
-        """
-        :param data: input encrypted data
-        :rtype: bytes
-        """
-        try:
-            return self.decrypt(data)
-        except (IndexError, ValueError) as e:
-            if logger.level == logging.DEBUG:
-                traceback.print_exc()
-            else:
-                raise CipherError('{}: {}'.format(data, e))
+    def decrypt(self, data: bytes):
+        pass
 
     @property
     def _name(self):
@@ -62,7 +41,7 @@ class BaseCipher:
                            key_len, self._key)
 
 
-class CipherChain(BaseCipher):
+class FuzzChain:
 
     def __init__(self, cipher_list):
         self.cipher_list = cipher_list
